@@ -57,7 +57,7 @@ sigma = 0.8;
 % As an example, use a single image
 % images = {'000015.jpg'};
 % images = {'/data/v50/sangdonp/objectDetection/DB/VOC_INRIA_person/JPEGImages/person_007.jpg'};
-images = {'/data/extern/Facades/monge/cvpr2010/images/monge_101.jpg'};
+images = {'/home/ggdons/UPenn/Dropbox/Research/socialObject/test1.png'};
 
 im = imread(images{1});
 
@@ -65,8 +65,17 @@ im = imread(images{1});
 [boxes blobIndIm blobBoxes hierarchy] = Image2HierarchicalGrouping(im, sigma, k, minSize, colorType, simFunctionHandles);
 boxes = BoxRemoveDuplicates(boxes);
 
-% Show boxes
-ShowRectsWithinImage(boxes, 5, 5, im);
+% Show boxes or save boxes
+% ShowRectsWithinImage(boxes, 5, 5, im);
+for i=1:size(boxes,1)
+    bbox = boxes(i, :);
+    figure(1);
+    imshow(im);
+    hold on; 
+    rectangle('Position', [bbox(2) bbox(1) bbox(4)-bbox(2) bbox(3)-bbox(1)], 'EdgeColor', 'r', 'lineWidth', 4);
+    hold off;
+    saveas(1, sprintf('%s/%d.png',  '~/UPenn/Research/Data/social_ss/', i)); 
+end
 
 % % Show blobs which result from first similarity function
 % hBlobs = RecreateBlobHierarchyIndIm(blobIndIm, blobBoxes, hierarchy{1});
