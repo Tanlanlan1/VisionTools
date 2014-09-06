@@ -1,4 +1,4 @@
-function pick = nms(boxes, overlap)
+function o_pick = nms(boxes, overlap)
 % Non-maximum suppression.
 %   pick = nms(boxes, overlap) 
 % 
@@ -17,7 +17,7 @@ function pick = nms(boxes, overlap)
 %             union measure.
 
 if isempty(boxes)
-  pick = [];
+  o_pick = zeros(0, 1);
 else
   x1 = boxes(:,1);
   y1 = boxes(:,2);
@@ -27,12 +27,20 @@ else
   area = (x2-x1+1) .* (y2-y1+1);
 
   [vals, I] = sort(s);
-  pick = [];
+%   pick = [];
+  pick = zeros(numel(I), 1);
+  pickInd = 1;
   while ~isempty(I)
     last = length(I);
     i = I(last);
-    pick = [pick; i];
-    suppress = [last];
+%     pick = [pick; i];
+    pick(pickInd) = i;
+    pickInd = pickInd + 1;
+    
+%     suppress = [last];
+    suppress = zeros(last, 1);
+    suppress(1) = last;
+    suppressInd = 2;
     for pos = 1:last-1
       j = I(pos);
       xx1 = max(x1(i), x1(j));
@@ -45,10 +53,14 @@ else
         % compute overlap 
         o = w * h / area(j);
         if o > overlap
-          suppress = [suppress; pos];
+%           suppress = [suppress; pos];
+          suppress(suppressInd) = pos;
+          suppressInd = suppressInd + 1;
         end
       end
     end
+    suppress = suppress(1:suppressInd-1);
     I(suppress) = [];
   end  
+  o_pick = pick(1:pickInd-1);
 end

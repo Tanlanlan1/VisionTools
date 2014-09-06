@@ -1,12 +1,35 @@
 % function showbbs(im, boxes, range, thres, cm, i_crop, i_showcb)
-function showbbs(im, boxes, type, range, cm)
+% function showbbs(im, boxes, nTop, type, range, cm)
+function showbbs(im, boxes, nTop, varargin)
 % Draw bounding boxes on top of an image.
-%   showboxes(im, boxes, out)
+%   showbbs(im, boxes, nTop, type, range, cm)
 %   If out is given, a pdf of the image is generated (requires export_fig).
 %       type
 %           0: root
 %           1: root + part
 
+switch nargin
+    case 3
+        type = 0;
+        scoreRange = [];
+        cm = colormap(jet);
+    case 4
+        type = varargin{1};
+        scoreRange = [];
+        cm = colormap(jet);
+    case 5
+        type = varargin{1};
+        scoreRange = varargin{2};
+        cm = colormap(jet);
+    case 6
+        type = varargin{1};
+        scoreRange = varargin{2};
+        cm = varargin{3};
+    otherwise
+        error('Invalid args!')
+end
+
+boxes = boxes(1:min(size(boxes, 1), nTop), :); 
 
 nCM = size(cm, 1);
 lineWidth = 3;
@@ -15,12 +38,12 @@ bbsize = 6;
 
 image(im); 
 axis image;
-if isempty(range)
+if isempty(scoreRange)
     switch type
         case 0
-            range = [floor(min(boxes(:, end))), ceil(max(boxes(:, end)))];
+            scoreRange = [floor(min(boxes(:, end))-eps), ceil(max(boxes(:, end))+eps)];
         case 1
-            range = [-1, 1];
+            scoreRange = [-1, 1];
     end
 end
 
@@ -48,9 +71,9 @@ for bInd=size(boxes, 1):-1:1
             case 1
                 score = appScore/abs(totalScore); % contribution of appearance score
         end
-        score = min(range(2), max(range(1), score));
+        score = min(scoreRange(2), max(scoreRange(1), score));
 
-        colorInd = round((score-range(1))/(range(2) - range(1))*(nCM-1) + 1);
+        colorInd = round((score-scoreRange(1))/(scoreRange(2) - scoreRange(1))*(nCM-1) + 1);
         c = cm(colorInd, :);
         
         line([x1 x1 x2 x2 x1]', [y1 y2 y2 y1 y1]', 'color', c, 'linewidth', lineWidth, 'linestyle', '-');
@@ -61,8 +84,8 @@ for bInd=size(boxes, 1):-1:1
                 
             case 1
                 score = defScore/abs(totalScore); % contribution of deformation score
-                score = min(range(2), max(range(1), score));
-                colorInd = round((score-range(1))/(range(2) - range(1))*(nCM-1) + 1);
+                score = min(scoreRange(2), max(scoreRange(1), score));
+                colorInd = round((score-scoreRange(1))/(scoreRange(2) - scoreRange(1))*(nCM-1) + 1);
                 c = cm(colorInd, :);
                 
                 plot(mean([x1, x2]), mean([y1, y2]), 'color', c, 'Marker', 'o', 'MarkerFaceColor', c, 'MarkerSize', 8);
@@ -73,7 +96,7 @@ hold off;
 if i_showcb == 1
     cb_h = colorbar;
     set(cb_h, 'YTick', [1 10:10:nCM]);
-    set(cb_h, 'YTickLabel', [range(1):(range(2)-range(1))/6:range(2)]);
+    set(cb_h, 'YTickLabel', [scoreRange(1):(scoreRange(2)-scoreRange(1))/6:scoreRange(2)]);
 end
 
 end
