@@ -98,10 +98,10 @@ mexFunction (int nout, mxArray ** out, int nin, mxArray const ** in)
                          &struct_parm, &learn_parm,
                          &kernel_parm, &alg_type ) ;
   
-  if (kernel_parm.kernel_type != LINEAR &&
-      kernel_parm.kernel_type != CUSTOM) {
-    mexErrMsgTxt ("Only LINEAR or CUSTOM kerneles are supported") ;
-  }
+//   if (kernel_parm.kernel_type != LINEAR &&
+//       kernel_parm.kernel_type != CUSTOM) {
+//     mexErrMsgTxt ("Only LINEAR or CUSTOM kerneles are supported") ;
+//   }
 
   /* Parse SPARM ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
   sparm_array = in [IN_SPARM] ;

@@ -35,7 +35,7 @@ fgImg_rnd = padarray(fgImg_rnd, [imH-fgObjH-fgY+1 imW-fgObjW-fgX+1], 0, 'post');
 fgPoly_rnd = bsxfun(@plus, poly_crop, [fgX-1; fgY-1]);
 
 bg_crop = imcrop_poly(i_bg, fgPoly_rnd, false);
-bg_crop = imresize(bg_crop, [size(fgImg_rnd, 1), size(fgImg_rnd, 2)]); %% not good!
+% bg_crop = imresize(bg_crop, [size(fgImg_rnd, 1), size(fgImg_rnd, 2)]); %% not good!
 
 o_syn = imadd(fgImg_rnd, bg_crop);
 o_poly = fgPoly_rnd;

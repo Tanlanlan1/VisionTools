@@ -2,10 +2,10 @@ function [ o_mat ] = crop3dmat( i_mat, i_rect)
 %CROP3DMAT Summary of this function goes here
 %   Detailed explanation goes here
 
-if (size(i_mat, 2) == i_rect(3)-i_rect(1)+1) && (size(i_mat, 1) == i_rect(4)-i_rect(2)+1)
-    o_mat = i_mat;
-    return;
-end
+% if (size(i_mat, 2) == i_rect(3)-i_rect(1)+1) && (size(i_mat, 1) == i_rect(4)-i_rect(2)+1)
+%     o_mat = i_mat;
+%     return;
+% end
 
 assert(2 <= numel(size(i_mat)) && numel(size(i_mat)) <= 3);
 

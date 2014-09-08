@@ -53,7 +53,7 @@ end
 pObj = params.pobj;
 scoreBayes = zeros(size(score,1),1);
 
-for bb_id=1:size(score,1)
+parfor bb_id=1:size(score,1)
     
     tempPos = 1;
     tempNeg = 1;

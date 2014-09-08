@@ -3,13 +3,13 @@
 % annDir = srcImgs;
 % imgExt = 'jpg';
 
-function annotateBB(srcImgDir, annDir, imgExt)
+function annotateBB(srcDir, annDir, imgFmt)
 
 % for efficiency
-imgList = dir(sprintf('%s/*.%s', srcImgDir, imgExt));
+imgList = dir(sprintf('%s/%s', srcDir, imgFmt));
 
 % pop-up the figure
-h = figure('Name', 'Annotator', 'CreateFcn', @(src, evt) initFig(src, evt, srcImgDir, annDir, imgList), 'KeyPressFcn', @(obj, evt) handleKeyEvent(obj, evt, srcImgDir, annDir, imgList));
+h = figure('Name', 'Annotator', 'CreateFcn', @(src, evt) initFig(src, evt, srcDir, annDir, imgList), 'KeyPressFcn', @(obj, evt) handleKeyEvent(obj, evt, srcDir, annDir, imgList));
     
 % wait
 uiwait(h);
@@ -33,7 +33,7 @@ for aInd=1:numel(anns)
 end
 end
 
-function initFig(src, evt, srcImgDir, annDir, imgList)
+function initFig(src, evt, srcDir, annDir, imgList)
 global iInd;
 global aInd;
 global anns;
@@ -50,7 +50,7 @@ end
 aInd = 1;
 
 % show the img
-img = imread(sprintf('%s/%s', srcImgDir, imgList(iInd).name));
+img = imread(sprintf('%s/%s', srcDir, imgList(iInd).name));
 showImg(img, imgList(iInd).name);
 % show anns
 showAnns(anns, size(img)); 
@@ -120,8 +120,8 @@ switch evt.Key
         curLabel = input('input label > ', 's');
         
         % save
-        aInd = aInd + 1;
         anns(aInd).label = curLabel;
         anns(aInd).xywh = getPosition(hRect);
+        aInd = aInd + 1;
 end
 end

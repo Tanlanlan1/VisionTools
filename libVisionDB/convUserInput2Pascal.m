@@ -1,14 +1,14 @@
 %% user settings
-% vockitDir = '../libPascal';
-vockitDir = '~/UPenn/Dropbox/Research/tools/libPascal';
-dbName = 'RCTA';
+vockitDir = '../+PVOC';
+dbName = 'kids';
 
 % srcDBDir = 
-srcImgDir = '/data/v50/sangdonp/FacadeRecognition/data/RCTA_VOC/';
+srcImgDir = '~/UPenn/Dropbox/Research/SocialObject/trainImg';
 
+imgRescale = 1;
 
-destDBDir = ['/data/v50/sangdonp/FacadeRecognition/data/' dbName '_VOC'];
-posObjName = 'door';
+destDBDir = ['~/UPenn/Dropbox/Research/SocialObject/trainImg_' dbName '_VOC'];
+posObjName = 'obj';
 
 
 minNegBBWH = [2, 2];
@@ -18,7 +18,9 @@ uniformNegSize = 1;
 trainingRatio = 1;
 validateRatio = 0;
 testRatio = 0;
+% preferImgArea = 640*480;
 preferImgArea = 0;
+
 
 genRandomBg = 1;
 nNegPerIm = 100;
@@ -61,6 +63,7 @@ mkdir(imgSetsDir);
 files = dir(sprintf('%s/*.%s', srcImgDir, imgFileExt));
 pasAnns = cell(numel(files), 1);
 for fInd=1:numel(files)
+    bGetAnno = true;
     
     imFN = files(fInd).name;
     imFFN = sprintf('%s/%s', srcImgDir, imFN);
@@ -72,7 +75,7 @@ for fInd=1:numel(files)
     fprintf('- converting img %s (%d/%d)...\n', imFN, fInd, numel(files));
     
     %% convert positive examples
-    im = imread(imFFN);
+    im = imresize(imread(imFFN), imgRescale);
     if preferImgArea > 0
         curScale = sqrt(preferImgArea/(size(im, 1)*size(im, 2)));
         im = imresize(im, curScale);
@@ -81,12 +84,12 @@ for fInd=1:numel(files)
     end
     
     % annotate
-    figure(10001);
+    figure(10001); clf;
     imshow(im);
     axis on; axis image;
 
     polys = [];
-    while 1
+    while bGetAnno
         [x, y] = ginput(4);
         if isempty(x)
             break;
@@ -95,20 +98,26 @@ for fInd=1:numel(files)
         hold on;
         rectangle('Position', [min(x) min(y) max(x)-min(x) max(y)-min(y)], 'EdgeColor', 'g')
         hold off;
-
-        polys = [polys; {ceil([x'; y'])}];
+        
+        inStr = input('[y]es/[n]o/[l]eave? ', 's');
+        if strcmp(inStr, 'y')
+            polys = [polys; {ceil([x'; y'])}];
+        elseif strcmp(inStr, 'l')
+            polys = [polys; {ceil([x'; y'])}];
+            bGetAnno = false;
+        end
     end
     
     
     posBBs = [];
     for pInd=1:numel(polys)
         curPoly = ceil(polys{pInd});
-        xmin = min(curPoly(1, :))*curScale;
-        ymin = min(curPoly(2, :))*curScale;
-        xmax = max(curPoly(1, :))*curScale;
-        ymax = max(curPoly(2, :))*curScale;
+        xmin = min(curPoly(1, :));
+        ymin = min(curPoly(2, :));
+        xmax = max(curPoly(1, :));
+        ymax = max(curPoly(2, :));
         
-        posBBs = [xmin'; ymin'; xmax'; ymax'];
+        posBBs = [posBBs [xmin'; ymin'; xmax'; ymax']];
         
 
     end
@@ -121,8 +130,12 @@ for fInd=1:numel(files)
     if genRandomBg == 1
         
         if uniformNegSize == 1
-            assert(numel(posPasDB(1).annotation.objects) == 1);
-            negWH = [posBBs(3)-posBBs(1); posBBs(4)-posBBs(2)];
+            if numel(posPasDB(1).annotation.objects) >= 1
+                negWH = [posBBs(3, 1)-posBBs(1, 1); posBBs(4, 1)-posBBs(2, 1)];
+            else
+                warning('not good...');
+                negWH = [];
+            end
         else
             negWH = [];
         end

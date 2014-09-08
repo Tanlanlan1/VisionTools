@@ -34,7 +34,7 @@ boxes = boxes(1:min(size(boxes, 1), nTop), :);
 nCM = size(cm, 1);
 lineWidth = 3;
 i_showcb = 1;
-bbsize = 6;
+bbsize = 5;
 
 image(im); 
 axis image;
@@ -61,7 +61,8 @@ for bInd=size(boxes, 1):-1:1
         x2 = boxes(bInd, bbsize*(pInd-1)+3);
         y2 = boxes(bInd, bbsize*(pInd-1)+4);
         appScore = boxes(bInd, bbsize*(pInd-1)+5);
-        defScore = boxes(bInd, bbsize*(pInd-1)+6);
+%         defScore = boxes(bInd, bbsize*(pInd-1)+6);
+        defScore = 0;  %%FIXME: no def scores...
         totalScore = boxes(bInd, end);
         
         % appeaerance

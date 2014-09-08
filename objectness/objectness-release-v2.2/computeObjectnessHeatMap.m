@@ -1,4 +1,4 @@
-function objHeatMap = computeObjectnessHeatMap(img,windows)
+function [objHeatMapImg, objHeatMap] = computeObjectnessHeatMap(img,windows)
 
 %compute the objectness heat map for an image
 %INPUT:
@@ -18,9 +18,10 @@ for idx = 1:size(windows,1)
         map = map + maskBox;    
 end
 
+objHeatMap = map;
 gray = mat2gray(map);
 X = gray2ind(gray,256);
-objHeatMap = ind2rgb(X,jet(256));
-figure;
-subplot(2,1,1),imshow(img),title('Input image');
-subplot(2,1,2),imshow(objHeatMap);title('Objectness heat map');
+objHeatMapImg = ind2rgb(X,jet(256));
+% figure;
+% subplot(2,1,1),imshow(img),title('Input image');
+% subplot(2,1,2),imshow(objHeatMap);title('Objectness heat map');

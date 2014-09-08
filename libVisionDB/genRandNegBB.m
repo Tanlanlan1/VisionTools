@@ -1,4 +1,4 @@
-function [ o_negBBs ] = genRandNegBB( i_imSize, i_posBBs, i_nNeg, i_overThres, i_minNegBBWH )
+function [ o_negBBs ] = genRandNegBB( i_imSize, i_posBBs, i_nNeg, i_overThres, i_minNegBBWH, i_negWH )
 %GENRANDNEGBB Summary of this function goes here
 %   Detailed explanation goes here
 width = i_imSize(2);
@@ -10,8 +10,18 @@ while 1
     if curNegInd > i_nNeg
         break;
     end
-    xs = rand(2,1)*width;
-    ys = rand(2,1)*height;
+    
+    if isempty(i_negWH)
+        xs = rand(2,1)*width;
+        ys = rand(2,1)*height;
+    else
+        xs = rand(1, 1)*(width-i_negWH(1));
+        xs = [xs; xs+i_negWH(1)];
+        
+        ys = rand(1,1)*(height-i_negWH(2));
+        ys = [ys; ys+i_negWH(2)];
+    end
+    
     if abs(xs(1) - xs(2)) < i_minNegBBWH(1)
         continue;
     end
