@@ -12,14 +12,7 @@ function [ o_feat ] = GetDenseFeature( i_img, i_cues, i_params )
 %           'texture_LM'        use the Leung-Malik filter bank
 % 
 %       i_params:       parameter structure for each cues
-%           'NCut'              i_params.N: the number of segments
-%                               i_params.verbosity: the level of verbosity [0 (slient), 1]
-% 
-%           'Turbopixel'        i_params.N: the number of segments
-%                               i_params.verbosity: the level of verbosity [0 (slient), 1]
-% 
-%           'SLIC'              i_params.N: the number of segments
-%                               i_params.verbosity: the level of verbosity [0 (slient), 1]
+%           i_params.verbosity  the level of verbosity [0 (slient), 1]  
 % 
 % ----------
 %   Output:
