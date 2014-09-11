@@ -1,4 +1,4 @@
-function RGB=showmask(V,M,display_flag);
+function RGB=showmask(V,M,display_flag)
 % showmask(V,M);
 %
 % M is a nonneg. mask
@@ -15,7 +15,8 @@ H=0.0+zeros(size(V));
 S=M;
 RGB=hsv2rgb(H,S,V);
 
-%if nargin>2
+if nargin>2 && display_flag == 1
    image(RGB)
    axis('image')
-%end
+end
+end
