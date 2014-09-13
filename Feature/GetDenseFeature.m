@@ -45,25 +45,20 @@ for cInd=1:numel(i_cues)
     switch i_cues{cInd}
         case 'color_RGB'
             assert(size(img, 3) == 3);
-            o_feat{cInd} = img;
+            o_feat{cInd} = GetRGBDenseFeature(img);
             
         case 'color_Lab'
             assert(size(img, 3) == 3);    
-            o_feat{cInd} = applycform(img, makecform('srgb2lab'));
+            o_feat{cInd} = GetLabDenseFeature(i_img);
             
         case 'texture_LM'
-            img = rgb2gray(img);
-            Fs = makeLMfilters;
-            img_pad = padarray(img, [(size(Fs, 1)-1)/2 (size(Fs, 2)-1)/2], 'symmetric', 'both');
-            responses = zeros(size(img, 1), size(img, 2), size(Fs, 3));
-            for fInd=1:size(Fs, 3)
-                responses(:, :, fInd) = conv2(img_pad, Fs(:, :, fInd), 'valid'); % symetric filters, so don't need to flip
-            end
-            o_feat{cInd} = responses;
+            o_feat{cInd} = GetTextureLMFeature(i_img);
+            
             
         case 'texture_MR4'
             img = rgb2gray(img);
             
+        case 'texton'
             
         otherwise
             warning('Wrong cue name: %s', i_cues{cInd});
@@ -87,3 +82,25 @@ end
 
 end
 
+function [o_feat] = GetRGBDenseFeature(i_img)
+o_feat = i_img;
+end
+
+function [o_feat] = GetLabDenseFeature(i_img)
+o_feat = applycform(i_img, makecform('srgb2lab'));
+end
+
+function [o_feat] = GetTextureLMFeature(i_img)
+img = rgb2gray(i_img);
+Fs = makeLMfilters;
+img_pad = padarray(img, [(size(Fs, 1)-1)/2 (size(Fs, 2)-1)/2], 'symmetric', 'both');
+responses = zeros(size(img, 1), size(img, 2), size(Fs, 3));
+for fInd=1:size(Fs, 3)
+    responses(:, :, fInd) = conv2(img_pad, Fs(:, :, fInd), 'valid'); % symetric filters, so don't need to flip
+end
+o_feat = responses;
+end
+
+function [o_feat] = GetTextonFeature(i_img)
+
+end
