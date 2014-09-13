@@ -3,4 +3,4 @@
 	url = https://github.com/sangdon/ae-multigrid.git
 [submodule "vlfeat"]
 	path = vlfeat
-	url = https://github.com/vlfeat/vlfeat.git
+	url = https://github.com/sangdon/vlfeat
