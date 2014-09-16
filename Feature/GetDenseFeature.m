@@ -48,7 +48,6 @@ vlfeatmexapthall = genpath(vlfeatmexpath);
 addpath(vlfeatmexapthall);
 setenv('LD_LIBRARY_PATH', [vlfeatmexapthall ':' getenv('LD_LIBRARY_PATH')]);
 
-
 if nargin < 3
     i_params = struct('verbosity', 0);
 end
@@ -379,7 +378,7 @@ else
 end
 %% extract TextonBoost features
 if verbosity >= 1
-    fprintf('* extract TextonBoost features...');
+    fprintf('* extract TextonBoost features for %d points...', sum(i_params.sampleMask(:)));
     tbTic = tic;
 end
 feat = GetTextonBoost(textIntImgs, params);
