@@ -378,10 +378,10 @@ else
 end
 %% extract TextonBoost features
 if verbosity >= 1
-    fprintf('* extract TextonBoost features for %d points...', sum(i_params.sampleMask(:)));
+    fprintf('* extract TextonBoost features for %d points (can be smaller than this)...', sum(i_params.sampleMask(:)));
     tbTic = tic;
 end
-feat = GetTextonBoost(textIntImgs, params);
+[feat, params] = GetTextonBoost(textIntImgs, params);
 if verbosity >= 1
     fprintf('%s sec.\n', num2str(toc(tbTic)));
 end

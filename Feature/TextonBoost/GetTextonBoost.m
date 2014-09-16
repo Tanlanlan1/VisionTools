@@ -1,4 +1,4 @@
-function [ o_feat ] = GetTextonBoost( i_textIntImgs, i_params )
+function [ o_feat, o_params ] = GetTextonBoost( i_textIntImgs, i_params )
 %GETTEXTONBOOST Summary of this function goes here
 %   Detailed explanation goes here
 %   i_tbParams.parts(:, i)      ith rectangle in the form of [xmin; xmax; ymin; ymax] 
@@ -43,5 +43,6 @@ end
 
 %% return
 o_feat = feat;
-
+o_params = i_params;
+o_params.sampleMask = sampleMask;
 end
