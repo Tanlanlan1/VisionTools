@@ -40,9 +40,10 @@ function [ o_feat, o_params ] = GetDenseFeature( i_img, i_cues, i_params )
 %
 
 %% init
-addpath('./Texture');
-addpath('./TextonBoost');
-vlfeatmexpath = [pwd '/../vlfeat/toolbox/mex'];
+thisFilePath = fileparts(mfilename('fullpath'));
+addpath([thisFilePath '/Texture']);
+addpath([thisFilePath '/TextonBoost']);
+vlfeatmexpath = [thisFilePath '/../vlfeat/toolbox/mex'];
 vlfeatmexapthall = genpath(vlfeatmexpath);
 addpath(vlfeatmexapthall);
 setenv('LD_LIBRARY_PATH', [vlfeatmexapthall ':' getenv('LD_LIBRARY_PATH')]);
@@ -193,7 +194,7 @@ if ~isfield(i_params, 'textons') || isempty(i_params.textons)
         curTexture = textures{iInd};
         data_is = reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])';
         step = size(data_is, 2)/round(samplingRatio*size(data_is, 2));
-        data{iInd} = data_is(1:step:end, :);
+        data{iInd} = data_is(:, 1:step:end);
     end
     data = cell2mat(data);
     if verbosity >= 1
@@ -306,12 +307,29 @@ else
     cellFlag = false;
 end
 
+if mod(i_params.LOFilterWH(1), 1) ~= 0
+    if i_params.verbosity >= 1
+        warning('non-integer width of a layout filter. Will be floored');
+    end
+    i_params.LOFilterWH(1) = floor(i_params.LOFilterWH(1));
+end
+if mod(i_params.LOFilterWH(2), 1) ~= 0
+    if i_params.verbosity >= 1
+        warning('non-integer height of a layout filter. Will be floored');
+    end
+    i_params.LOFilterWH(2) = floor(i_params.LOFilterWH(2));
+end
+
 if mod(i_params.LOFilterWH(1), 2) == 0
-    warning('even with of a layout filter. Will be modified to be odd');
+    if i_params.verbosity >= 1
+        warning('even width of a layout filter. Will be modified to be odd');
+    end
     i_params.LOFilterWH(1) = i_params.LOFilterWH(1) - 1;
 end
 if mod(i_params.LOFilterWH(2), 2) == 0
-    warning('even height of a layout filter. Will be modified to be odd');
+    if i_params.verbosity >= 1
+        warning('even height of a layout filter. Will be modified to be odd');
+    end
     i_params.LOFilterWH(2) = i_params.LOFilterWH(2) - 1;
 end
 
