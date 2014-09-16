@@ -11,10 +11,19 @@ function [ o_feat, o_params ] = GetDenseFeature( i_img, i_cues, i_params )
 %           'color_Lab'         extract Lab colors
 %           'texture_LM'        extract texture based on the the Leung-Malik filter bank
 %           'texton'            extract textons based on the texture_LM
+%           'textonBoost'       extract textonBoost
+%           'textonBoostInt'
 % 
 %       i_params:       parameter structure for each cues
-%           i_params.verbosity  the level of verbosity [0 (slient), 1(console output), 2(+selected figures), 3(all)]  
-%           i_params.nTexton    ('texton') the number of textons
+%           i_params.verbosity      the level of verbosity [0 (slient), 1(console output), 2(+selected figures), 3(all)]  
+%           i_params.samplingRatio  
+%           i_params.nNN
+%           i_params.nTexton        ('texton', 'textonBoost') the number of textons
+%           i_params.nPart          ('textonBoost') the number of a subwindow
+%           i_params.LOFilterWH     ('textonBoost') the width and height of a
+%                                   layout filter
+%           i_params.sampleMask     ('textonBoost' or for all) extract features only
+%                                   on the selected region
 % 
 % ----------
 %   Output:
@@ -32,6 +41,7 @@ function [ o_feat, o_params ] = GetDenseFeature( i_img, i_cues, i_params )
 
 %% init
 addpath('./Texture');
+addpath('./TextonBoost');
 vlfeatmexpath = [pwd '/../vlfeat/toolbox/mex'];
 vlfeatmexapthall = genpath(vlfeatmexpath);
 addpath(vlfeatmexapthall);
@@ -76,6 +86,12 @@ for cInd=1:numel(i_cues)
         case 'texton'
             [o_feat{cInd}, o_params] = GetTextonFeature(img, i_params);
             
+        case 'TextonBoost'
+            [o_feat{cInd}, o_params] = GetTextonBoostFeature(img, i_params);
+            
+        case 'TextonBoostInt'
+            [o_feat{cInd}, o_params] = GetTextonBoostIntFeature(img, i_params);
+            
         otherwise
             warning('Wrong cue name: %s', i_cues{cInd});
     end
@@ -87,7 +103,7 @@ o_feat = cell2mat(o_feat);
 
 %% show
 if i_params.verbosity >= 3
-    h = figure;
+    h = figure(23912);
     for fInd=1:size(o_feat, 3)
         figure(h);
         imagesc(o_feat(:, :, fInd));
@@ -217,7 +233,7 @@ if verbosity >= 2
     [tim, tperm] = visTextons(textons, fb_c);
     resp_norm = cellfun(@(r) 0.01*r./max(abs(r(:))), tim(tperm), 'UniformOutput', false);
     imgarray = cell2mat(reshape(resp_norm, [1 1 1 nTexton]));
-    figure;
+    figure(71683); clf;
     montage(imgarray, 'DisplayRange', [min(imgarray(:)), max(imgarray(:))]);
     axis image; colorbar;
 
@@ -225,7 +241,7 @@ if verbosity >= 2
     riInd = randi(nImg, 1);
     curImg = i_imgs{riInd};
     [~ , curFeat_max] = max(feat{riInd}, [], 3);
-    figure;
+    figure(76234); clf;
     subplot(1, 2, 1); imshow(curImg);
     subplot(1, 2, 2); imagesc(curFeat_max); axis image;
 end
@@ -241,3 +257,128 @@ o_params.kdtree = kdtree;
 
 
 end
+
+function [ o_parts ] = GenTextonBoostParts( i_params )
+
+LOFWH = i_params.LOFilterWH;
+nParts = i_params.nPart;
+verbosity = i_params.verbosity;
+
+o_parts = [];
+for pInd=1:nParts
+    xs = [0; 0];
+    while xs(1) == xs(2)
+        xs = randi(LOFWH(1), [2, 1]);
+    end
+    
+    ys = [0; 0];
+    while ys(1) == ys(2)
+        ys = randi(LOFWH(2), [2, 1]);
+    end
+    
+    o_parts = [o_parts [min(xs); max(xs); min(ys); max(ys)]];
+end
+
+if verbosity >= 2
+    figure(34125); clf;
+    rectangle('Position', [1 1 LOFWH(:)'-1]); hold on; % layoutFilter
+    for pInd=1:nParts
+        subWin = o_parts(:, pInd)';
+        rectangle('Position', [subWin(1) subWin(3) subWin([2,4]) - subWin([1 3])]); hold on; % subwindows
+    end
+end
+
+end
+
+function [o_feat, o_params] = GetTextonBoostIntFeature(i_imgs, i_params)
+
+%% init
+assert(isfield(i_params, 'nPart'));
+assert(isfield(i_params, 'nTexton'));
+assert(isfield(i_params, 'LOFilterWH'));
+
+if iscell(i_imgs)
+    nImg = numel(i_imgs);
+    cellFlag = true;
+else
+    i_imgs = {i_imgs};
+    nImg = 1;
+    cellFlag = false;
+end
+
+if mod(i_params.LOFilterWH(1), 2) == 0
+    warning('even with of a layout filter. Will be modified to be odd');
+    i_params.LOFilterWH(1) = i_params.LOFilterWH(1) - 1;
+end
+if mod(i_params.LOFilterWH(2), 2) == 0
+    warning('even height of a layout filter. Will be modified to be odd');
+    i_params.LOFilterWH(2) = i_params.LOFilterWH(2) - 1;
+end
+
+params = i_params;
+nTexton = i_params.nTexton;
+
+%% generate parts
+if ~isfield(params, 'parts')
+    params.parts = GenTextonBoostParts(params);
+end
+
+%% obtain integral images
+[textonFeats, params] = GetTextonFeature(i_imgs, params);
+feat = cell(nImg, 1);
+for iInd=1:nImg
+    textIntImg = zeros(size(textonFeats{iInd}, 1)+1, size(textonFeats{iInd}, 2)+1, nTexton, 'single');
+    for tInd=1:nTexton
+        textIntImg(:, :, tInd) = integralImage(textonFeats{iInd}(:, :, tInd));
+    end
+    feat{iInd} = textIntImg;
+end
+
+%% return
+if ~cellFlag
+    feat = cell2mat(feat);
+end
+o_params = params;
+o_feat = feat;
+
+end
+
+function [o_feat, o_params] = GetTextonBoostFeature(i_imgs, i_params)
+%% init
+verbosity = i_params.verbosity;
+
+%% obtain integral images
+[textIntImgs, params] = GetTextonBoostIntFeature(i_imgs, i_params);
+
+if iscell(textIntImgs)
+    cellFlag = true;
+    textIntImgs = cell2mat(reshape(textIntImgs, 1, 1, 1, numel(textIntImgs)));
+    
+    waring('still working...');
+    keyboard;
+else
+    cellFlag = false;
+end
+%% extract TextonBoost features
+if verbosity >= 1
+    fprintf('* extract TextonBoost features...');
+    tbTic = tic;
+end
+feat = GetTextonBoost(textIntImgs, params);
+if verbosity >= 1
+    fprintf('%s sec.\n', num2str(toc(tbTic)));
+end
+%% return
+if cellFlag 
+   feat = squeeze(mat2cell(feat, size(feat, 1), size(feat, 2), size(feat, 3), ones(1, size(feat, 4))));
+end    
+o_params = params;
+o_feat = feat;
+
+%% visualize
+if verbosity >= 2
+    figure(56457); 
+    imagesc(o_feat(:, :, randi(size(o_feat, 3), 1), randi(size(o_feat, 4), 1)));
+end
+end
+
