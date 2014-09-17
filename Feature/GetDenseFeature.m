@@ -11,8 +11,8 @@ function [ o_feat, o_params ] = GetDenseFeature( i_img, i_cues, i_params )
 %           'color_Lab'         extract Lab colors
 %           'texture_LM'        extract texture based on the the Leung-Malik filter bank
 %           'texton'            extract textons based on the texture_LM
-%           'textonBoost'       extract textonBoost
-%           'textonBoostInt'
+%           'TextonBoost'       extract textonBoost
+%           'TextonBoostInt'
 % 
 %       i_params:       parameter structure for each cues
 %           i_params.verbosity      the level of verbosity [0 (slient), 1(console output), 2(+selected figures), 3(all)]  
