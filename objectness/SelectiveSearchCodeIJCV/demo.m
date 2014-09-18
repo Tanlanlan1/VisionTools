@@ -50,14 +50,14 @@ simFunctionHandles = simFunctionHandles(1:end); % Two different merging strategi
 
 % Thresholds for the Felzenszwalb and Huttenlocher segmentation algorithm.
 % Note that by default, we set minSize = k, and sigma = 0.8.
-k = 100; % controls size of segments of initial segmentation. 
+k = 1000; % controls size of segments of initial segmentation. k = 100
 minSize = k;
 sigma = 0.8;
 
 % As an example, use a single image
 % images = {'000015.jpg'};
 % images = {'/data/v50/sangdonp/objectDetection/DB/VOC_INRIA_person/JPEGImages/person_007.jpg'};
-images = {'/home/ggdons/UPenn/Dropbox/Research/socialObject/test1.png'};
+images = {'~/UPenn/Research/Data/classData/3/image_undist/image0000100.bmp'};
 
 im = imread(images{1});
 
@@ -65,18 +65,19 @@ im = imread(images{1});
 [boxes blobIndIm blobBoxes hierarchy] = Image2HierarchicalGrouping(im, sigma, k, minSize, colorType, simFunctionHandles);
 boxes = BoxRemoveDuplicates(boxes);
 
-% Show boxes or save boxes
+% % Show boxes or save boxes
 % ShowRectsWithinImage(boxes, 5, 5, im);
-for i=1:size(boxes,1)
-    bbox = boxes(i, :);
-    figure(1);
-    imshow(im);
-    hold on; 
-    rectangle('Position', [bbox(2) bbox(1) bbox(4)-bbox(2) bbox(3)-bbox(1)], 'EdgeColor', 'r', 'lineWidth', 4);
-    hold off;
-    saveas(1, sprintf('%s/%d.png',  '~/UPenn/Research/Data/social_ss/', i)); 
-end
 
-% % Show blobs which result from first similarity function
-% hBlobs = RecreateBlobHierarchyIndIm(blobIndIm, blobBoxes, hierarchy{1});
-% ShowBlobs(hBlobs, 5, 5, im);
+% for i=1:size(boxes,1)
+%     bbox = boxes(i, :);
+%     figure(1);
+%     imshow(im);
+%     hold on; 
+%     rectangle('Position', [bbox(2) bbox(1) bbox(4)-bbox(2) bbox(3)-bbox(1)], 'EdgeColor', 'r', 'lineWidth', 4);
+%     hold off;
+% %     saveas(1, sprintf('%s/%d.png',  '~/UPenn/Research/Data/social_ss/', i)); 
+% end
+
+% Show blobs which result from first similarity function
+hBlobs = RecreateBlobHierarchyIndIm(blobIndIm, blobBoxes, hierarchy{1});
+ShowBlobs(hBlobs, 5, 5, im);

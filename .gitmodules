@@ -10,3 +10,6 @@
 [submodule "vlfeat"]
 	path = vlfeat
 	url = https://github.com/sangdon/vlfeat
+[submodule "SelectiveSearch"]
+	path = SelectiveSearch
+	url = https://github.com/sangdon/SelectiveSearch
