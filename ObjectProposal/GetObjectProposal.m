@@ -150,7 +150,7 @@ end
 end
 
 function [o_blobs] = suppressBlobs(i_blobs, i_overlap)
-% suppress blobs based on the number of pixels of blobs. ?? is preferred. Check a overlap simply based on a bounding box.
+% suppress blobs based on the number of pixels of blobs. a convex blob is preferred. Check a overlap simply based on a bounding box.
 
 [~, I] = sort([i_blobs(:).convexity], 'descend');
 blobs = i_blobs(I);
