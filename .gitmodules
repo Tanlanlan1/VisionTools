@@ -13,3 +13,6 @@
 [submodule "SelectiveSearch"]
 	path = SelectiveSearch
 	url = https://github.com/sangdon/SelectiveSearch
+[submodule "TurboPixels"]
+	path = TurboPixels
+	url = https://github.com/sangdon/TurboPixels
