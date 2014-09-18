@@ -16,3 +16,6 @@
 [submodule "TurboPixels"]
 	path = TurboPixels
 	url = https://github.com/sangdon/TurboPixels
+[submodule "libsvm"]
+	path = libsvm
+	url = https://github.com/sangdon/libsvm
