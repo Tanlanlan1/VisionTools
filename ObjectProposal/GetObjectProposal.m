@@ -126,7 +126,7 @@ for iInd=1:nImg
     blobs = hBlobs_pruned{:};
     blobs = cell2mat(blobs);
     
-    % change the rect format and add convexity
+    % change the rect format % [x y w h] and add convexity
     for bInd=1:numel(blobs)
         % [x y w h]
         blobs(bInd).rect_matlab = [blobs(bInd).rect(2) blobs(bInd).rect(1) blobs(bInd).rect(4)-blobs(bInd).rect(2) blobs(bInd).rect(3)-blobs(bInd).rect(1)];
