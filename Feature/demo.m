@@ -16,5 +16,6 @@ rr = 1:10:size(sampleMask, 1);
 linind = sub2ind(size(sampleMask), rows, cols);
 sampleMask(linind) = true;
 
-feats = GetDenseFeature(img, {'TextonBoost'}, ...
+imgs.img = img;
+feats = GetDenseFeature(imgs, {'TextonBoost'}, ...
     struct('nTexton', 64, 'nPart', 16, 'LOFilterWH', [13; 13], 'sampleMask', sampleMask,'verbosity', 2));

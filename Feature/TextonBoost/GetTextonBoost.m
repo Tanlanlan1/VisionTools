@@ -5,14 +5,14 @@ function [ o_feat, o_params ] = GetTextonBoost( i_textIntImgs, i_params )
 
 nParts = i_params.nPart;
 nTextons = i_params.nTexton;
-nImg = size(i_textIntImgs, 4);
+nImgs = numel(i_textIntImgs);
 sampleMask = i_params.sampleMask;
 
 %% construct an index
 [rows, cols] = find(sampleMask);
 cols = unique(cols);
 rows = unique(rows);
-[xs, ys, is] = meshgrid(cols, rows, 1:nImg); % be careful the order
+[xs, ys, is] = meshgrid(cols, rows, 1:nImgs); % be careful the order
 ixy = [is(:)'; xs(:)'; ys(:)'];
 
 %% extract a feature
@@ -29,8 +29,8 @@ if i_params.verbosity >= 1
     fprintf('%s sec.\n', num2str(toc(tbTic)));
 end
 %% change the format
-feat = zeros(numel(rows), numel(cols), nParts*nTextons, nImg);
-for iInd=1:nImg
+feat = zeros(numel(rows), numel(cols), nParts*nTextons, nImgs);
+for iInd=1:nImgs
     feat_lin_cur = feat_lin(:, ixy(1, :) == iInd)';
     feat_lin_cur = reshape(feat_lin_cur, [size(feat, 1), size(feat, 2), size(feat, 3)]);
     feat(:, :, :, iInd) = feat_lin_cur;

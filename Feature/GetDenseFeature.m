@@ -1,11 +1,11 @@
-function [ o_feat, o_params ] = GetDenseFeature( i_img, i_cues, i_params )
+function [ o_feat, o_params ] = GetDenseFeature( i_imgs, i_cues, i_params )
 % 
 %   Matlab wrapper of dense feature extract methods
 %   
 % ----------
 %   Input: 
 % 
-%       i_img:          a image or a cell array of images
+%       i_imgs          a struct array of images
 %       i_cues:         a string array where each elements stands for cues, e.g. Lab, texture
 %           'color_RGB'         extract RGB colors
 %           'color_Lab'         extract Lab colors
@@ -28,7 +28,7 @@ function [ o_feat, o_params ] = GetDenseFeature( i_img, i_cues, i_params )
 % ----------
 %   Output:
 % 
-%       o_feat:        dense features
+%       o_feat:        a struct array of dense features
 % 
 % ----------
 %   DEPENDENCY:
@@ -56,41 +56,43 @@ if ~isfield(i_params, 'verbosity')
 end
 
 %% extract features
-if iscell(i_img)
-    img = cellfun(@im2double, i_img, 'UniformOutput', false);
-else
-    img = im2double(i_img);
+for iInd=1:numel(i_imgs)
+    i_imgs(iInd).img = im2double(i_imgs(iInd).img);
 end
+imgs = i_imgs;
 
-o_feat = cell(1, 1, numel(i_cues));
+% o_feat = cell(1, 1, numel(i_cues));
+% o_feat = struct('feat', [], 'cue', []);
+assert(numel(i_cues) == 1);
 for cInd=1:numel(i_cues)
-    
     switch i_cues{cInd}
         case 'color_RGB'
-            assert(size(img, 3) == 3);
-            assert(~iscell(img));
-            o_feat{cInd} = GetRGBDenseFeature(img);
+            assert(size(imgs(1).img, 3) == 3);
+            o_feat = GetRGBDenseFeature(imgs);
             
         case 'color_Lab'
-            assert(size(img, 3) == 3);    
-            assert(~iscell(img));
-            o_feat{cInd} = GetLabDenseFeature(img);
+            assert(size(imgs, 3) == 3);    
+            assert(~iscell(imgs));
+            o_feat = GetLabDenseFeature(imgs);
             
         case 'texture_LM'
-            assert(~iscell(img));
-            o_feat{cInd} = GetTextureLMFeature(img);
+            assert(~iscell(imgs));
+            o_feat = GetTextureLMFeature(imgs);
              
         case 'texture_MR4'
 %             img = rgb2gray(img);
             
         case 'texton'
-            [o_feat{cInd}, o_params] = GetTextonFeature(img, i_params);
+%             [o_feat{cInd}, o_params] = GetTextonFeature(imgs, i_params);
+            [o_feat, o_params] = GetTextonFeature(imgs, i_params);
             
         case 'TextonBoost'
-            [o_feat{cInd}, o_params] = GetTextonBoostFeature(img, i_params);
+%             [o_feat{cInd}, o_params] = GetTextonBoostFeature(imgs, i_params);
+            [o_feat, o_params] = GetTextonBoostFeature(imgs, i_params);
             
         case 'TextonBoostInt'
-            [o_feat{cInd}, o_params] = GetTextonBoostIntFeature(img, i_params);
+%             [o_feat{cInd}, o_params] = GetTextonBoostIntFeature(imgs, i_params);
+            [o_feat, o_params] = GetTextonBoostIntFeature(imgs, i_params);
             
         otherwise
             warning('Wrong cue name: %s', i_cues{cInd});
@@ -100,18 +102,20 @@ end
 
 %% return
 % o_feat = cell2mat(cellfun(@(x) cell2mat(x), o_feat, 'UniformOutput', false));
-o_feat = cell2mat(o_feat);
+% o_feat = cell2mat(o_feat);
 
 %% show
 if i_params.verbosity >= 3
+    iInd = randi(numel(o_feat));
+    fInd = randi(size(o_feat(iInd).feat, 3));
+    
     h = figure(23912);
-    for fInd=1:size(o_feat, 3)
-        figure(h);
-        imagesc(o_feat(:, :, fInd));
-        axis image;
-        colorbar;
-        pause(0.1);
-    end
+    figure(h);
+    imagesc(o_feat(iInd).feat(:, :, fInd));
+    axis image;
+    colorbar;
+    title(sprintf('%dth image, %dth feature', iInd, fInd));
+
 end
 
 end
@@ -136,7 +140,7 @@ o_feat = responses;
 o_filterBank = Fs;
 end
 
-function [o_feat, o_params] = GetTextonFeature(i_imgs, i_params)
+function [o_feats, o_params] = GetTextonFeature(i_imgs, i_params)
 %% check i_params
 assert(isfield(i_params, 'nTexton'));
 nTexton = i_params.nTexton;
@@ -154,15 +158,15 @@ nNN = i_params.nNN;
 verbosity = i_params.verbosity;
 
 
-if iscell(i_imgs)
-    nImg = numel(i_imgs);
-    cellFlag = true;
-else
-    i_imgs = {i_imgs};
-    nImg = 1;
-    cellFlag = false;
-end
-
+% if iscell(i_imgs)
+%     nImg = numel(i_imgs);
+%     cellFlag = true;
+% else
+%     i_imgs = {i_imgs};
+%     nImg = 1;
+%     cellFlag = false;
+% end
+nImgs = numel(i_imgs);
 
 % %% construct image pyramid
 % if verbosity >= 1
@@ -179,9 +183,9 @@ end
 if verbosity >= 1
     disp('* obtain texture information');
 end
-textures = cell(nImg, 1);
-for iInd=1:nImg
-    [textures{iInd}, fb] = GetTextureLMFeature(i_imgs{iInd});
+textures = cell(nImgs, 1);
+for iInd=1:nImgs
+    [textures{iInd}, fb] = GetTextureLMFeature(i_imgs(iInd).img);
 end
 
 %% extract textons if not exist
@@ -189,8 +193,8 @@ if ~isfield(i_params, 'textons') || isempty(i_params.textons)
     if verbosity >= 1
         fprintf('* extract textons');
     end
-    data = cell(1, nImg);
-    for iInd=1:nImg
+    data = cell(1, nImgs);
+    for iInd=1:nImgs
         curTexture = textures{iInd};
         data_is = reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])';
         step = size(data_is, 2)/round(samplingRatio*size(data_is, 2));
@@ -208,8 +212,9 @@ else
 end
 
 %% obtain texton features
-feat = cell(nImg, 1);
-for iInd=1:nImg
+feats = struct('feat', []);
+feats(nImgs) = feats;
+for iInd=1:nImgs
     curTexture = textures{iInd};
     curTexture_q = reshape(textures{iInd}, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])';
     
@@ -220,7 +225,7 @@ for iInd=1:nImg
         linInd = sub2ind(size(textonImg), rows(:), cols(:), double(IND(nnInd, :))');
         textonImg(linInd) = exp(-DIST(nnInd, :));
     end
-    feat{iInd} = textonImg;
+    feats(iInd).feat = textonImg;
 end
 
 %% visualize
@@ -239,19 +244,19 @@ if verbosity >= 2
     axis image; colorbar;
 
     % texton feature
-    riInd = randi(nImg, 1);
-    curImg = i_imgs{riInd};
-    [~ , curFeat_max] = max(feat{riInd}, [], 3);
+    riInd = randi(nImgs, 1);
+    curImg = i_imgs(riInd).img;
+    [~ , curFeat_max] = max(feats(riInd).feat, [], 3);
     figure(76234); clf;
     subplot(1, 2, 1); imshow(curImg);
     subplot(1, 2, 2); imagesc(curFeat_max); axis image;
 end
 
 %% return
-if ~cellFlag
-    feat = cell2mat(feat);
-end
-o_feat = feat;
+% if ~cellFlag
+%     feat = cell2mat(feat);
+% end
+o_feats = feats;
 o_params = i_params;
 o_params.textons = textons;
 o_params.kdtree = kdtree;
@@ -291,21 +296,22 @@ end
 
 end
 
-function [o_feat, o_params] = GetTextonBoostIntFeature(i_imgs, i_params)
+function [o_feats, o_params] = GetTextonBoostIntFeature(i_imgs, i_params)
 
 %% init
 assert(isfield(i_params, 'nPart'));
 assert(isfield(i_params, 'nTexton'));
 assert(isfield(i_params, 'LOFilterWH'));
 
-if iscell(i_imgs)
-    nImg = numel(i_imgs);
-    cellFlag = true;
-else
-    i_imgs = {i_imgs};
-    nImg = 1;
-    cellFlag = false;
-end
+% if iscell(i_imgs)
+%     nImg = numel(i_imgs);
+%     cellFlag = true;
+% else
+%     i_imgs = {i_imgs};
+%     nImg = 1;
+%     cellFlag = false;
+% end
+nImg = numel(i_imgs);
 
 if mod(i_params.LOFilterWH(1), 1) ~= 0
     if i_params.verbosity >= 1
@@ -343,21 +349,24 @@ end
 
 %% obtain integral images
 [textonFeats, params] = GetTextonFeature(i_imgs, params);
-feat = cell(nImg, 1);
+% feat = cell(nImg, 1);
+feats = struct('feat', []);
+feats(nImg) = feats;
 for iInd=1:nImg
-    textIntImg = zeros(size(textonFeats{iInd}, 1)+1, size(textonFeats{iInd}, 2)+1, nTexton, 'single');
+    curFeat = textonFeats(iInd).feat;
+    textIntImg = zeros(size(curFeat, 1)+1, size(curFeat, 2)+1, nTexton, 'single');
     for tInd=1:nTexton
-        textIntImg(:, :, tInd) = integralImage(textonFeats{iInd}(:, :, tInd));
+        textIntImg(:, :, tInd) = integralImage(curFeat(:, :, tInd));
     end
-    feat{iInd} = textIntImg;
+    feats(iInd).feat = textIntImg;
 end
 
 %% return
-if ~cellFlag
-    feat = cell2mat(feat);
-end
+% if ~cellFlag
+%     feat = cell2mat(feat);
+% end
 o_params = params;
-o_feat = feat;
+o_feats = feats;
 
 end
 
@@ -368,22 +377,22 @@ verbosity = i_params.verbosity;
 %% obtain integral images
 [textIntImgs, params] = GetTextonBoostIntFeature(i_imgs, i_params);
 
-if iscell(textIntImgs)
-    cellFlag = true;
-    textIntImgs = cell2mat(reshape(textIntImgs, 1, 1, 1, numel(textIntImgs)));
-    
-    waring('still working...');
-    keyboard;
-else
-    cellFlag = false;
-end
+% if iscell(textIntImgs)
+%     cellFlag = true;
+%     textIntImgs = cell2mat(reshape(textIntImgs, 1, 1, 1, numel(textIntImgs)));
+%     
+%     waring('still working...');
+%     keyboard;
+% else
+%     cellFlag = false;
+% end
 %% extract TextonBoost features
 [feat, params] = GetTextonBoost(textIntImgs, params);
 
 %% return
-if cellFlag 
-   feat = squeeze(mat2cell(feat, size(feat, 1), size(feat, 2), size(feat, 3), ones(1, size(feat, 4))));
-end    
+% if cellFlag 
+%    feat = squeeze(mat2cell(feat, size(feat, 1), size(feat, 2), size(feat, 3), ones(1, size(feat, 4))));
+% end    
 o_params = params;
 o_feat = feat;
 
