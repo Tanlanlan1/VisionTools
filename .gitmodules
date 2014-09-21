@@ -4,9 +4,6 @@
 [submodule "svm-struct-matlab"]
 	path = svm-struct-matlab
 	url = https://github.com/sangdon/svm-struct-matlab
-[submodule "JointBoost"]
-	path = JointBoost
-	url = https://github.com/sangdon/JointBoost
 [submodule "vlfeat"]
 	path = vlfeat
 	url = https://github.com/sangdon/vlfeat
