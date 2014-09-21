@@ -5,21 +5,10 @@ function [ o_feat, o_params ] = GetTextonBoost( i_textIntImgs, i_params )
 
 nParts = i_params.nPart;
 nTextons = i_params.nTexton;
-LOFilterWH_half = (i_params.LOFilterWH-1)/2;
-imgWH = [size(i_textIntImgs, 2); size(i_textIntImgs, 1)]-1;
 nImg = size(i_textIntImgs, 4);
-if ~isfield(i_params, 'sampleMask')
-    i_params.sampleMask = true(imgWH(2), imgWH(1));
-end
 sampleMask = i_params.sampleMask;
 
 %% construct an index
-% falsify boundaries
-sampleMask(1:LOFilterWH_half(2), :) = false;
-sampleMask(imgWH(2)-LOFilterWH_half(2):end, :) = false;
-sampleMask(:, 1:LOFilterWH_half(1)) = false;
-sampleMask(:, imgWH(1)-LOFilterWH_half(1):end, :) = false;
-% construct
 [rows, cols] = find(sampleMask);
 cols = unique(cols);
 rows = unique(rows);
@@ -27,12 +16,18 @@ rows = unique(rows);
 ixy = [is(:)'; xs(:)'; ys(:)'];
 
 %% extract a feature
-feat_lin = zeros(nParts*nTextons, size(ixy, 2));
-for fInd=1:nParts*nTextons
-%     feat_lin(fInd, :) = GetithTextonBoost_mex( i_textIntImgs, ixy, fInd, i_params.parts, i_params.LOFilterWH, i_params.nTexton );
-    feat_lin(fInd, :) = GetithTextonBoost( i_textIntImgs, ixy, fInd, i_params );
+if i_params.verbosity >= 1
+    fprintf('* extract TextonBoost features for %d points...', size(ixy, 2));
+    tbTic = tic;
 end
 
+feat_lin = zeros(nParts*nTextons, size(ixy, 2));
+for fInd=1:nParts*nTextons
+    feat_lin(fInd, :) = GetithTextonBoost( i_textIntImgs, ixy, fInd, i_params );
+end
+if i_params.verbosity >= 1
+    fprintf('%s sec.\n', num2str(toc(tbTic)));
+end
 %% change the format
 feat = zeros(numel(rows), numel(cols), nParts*nTextons, nImg);
 for iInd=1:nImg

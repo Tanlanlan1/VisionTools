@@ -23,7 +23,7 @@ function [ o_feat, o_params ] = GetDenseFeature( i_img, i_cues, i_params )
 %           i_params.LOFilterWH     ('textonBoost') the width and height of a
 %                                   layout filter
 %           i_params.sampleMask     ('textonBoost' or for all) extract features only
-%                                   on the selected region
+%                                   on the selected region (FIXME: use samplingRatio)
 % 
 % ----------
 %   Output:
@@ -99,6 +99,7 @@ for cInd=1:numel(i_cues)
 end
 
 %% return
+% o_feat = cell2mat(cellfun(@(x) cell2mat(x), o_feat, 'UniformOutput', false));
 o_feat = cell2mat(o_feat);
 
 %% show
@@ -377,14 +378,8 @@ else
     cellFlag = false;
 end
 %% extract TextonBoost features
-if verbosity >= 1
-    fprintf('* extract TextonBoost features for %d points (can be smaller than this)...', sum(i_params.sampleMask(:)));
-    tbTic = tic;
-end
 [feat, params] = GetTextonBoost(textIntImgs, params);
-if verbosity >= 1
-    fprintf('%s sec.\n', num2str(toc(tbTic)));
-end
+
 %% return
 if cellFlag 
    feat = squeeze(mat2cell(feat, size(feat, 1), size(feat, 2), size(feat, 3), ones(1, size(feat, 4))));
