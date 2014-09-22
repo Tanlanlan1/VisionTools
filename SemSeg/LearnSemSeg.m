@@ -94,7 +94,7 @@ for iInd=1:nImgs
 end
 ixy(:, startInd:end) = [];
 label(startInd:end) = [];
-x_meta = struct('ixy', ixy, 'intImgfeat', feat, 'tbParams', tbParams);
+x_meta = struct('ixy', int32(ixy), 'intImgfeat', double(feat), 'tbParams', tbParams);
 
 % run
 JBParams = i_params.classifier;
@@ -104,6 +104,9 @@ if JBParams.verbosity >= 1
 end
 mdl = TrainJointBoost(@FeatCBFunc, label, JBParams, x_meta);
 % mdl = TrainJointBoost(reshape(feat, [size(feat, 1)*size(feat, 2) size(feat, 3)]), label, JBParams);
+
+% check input parameters
+mdl = LearnSemSeq_mex(x_meta, int32(label), JBParams);
 
 %% return
 o_mdl = struct('JBMdl', mdl, 'TBParams', tbParams);
