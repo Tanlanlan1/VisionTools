@@ -121,6 +121,11 @@ for totSize=1:nCls
         curS(candInd) = true;
         
         % estimate k, which is independent on f, and theta
+        wz_S = i_ws(:, curS).*i_zs(:, curS);
+        wz_nS = i_ws(:, ~curS).*i_zs(:, ~curS);
+        kc = ones(1, nCls)*nan;
+        kc(~curS) = sum(wz_nS, 1)./sum(i_ws(:, ~curS), 1); 
+
         % fit a stump. Find a weak learner given a S
         Jwse_S_best = inf;
         mdl_S_best = mdl_init;
@@ -129,20 +134,19 @@ for totSize=1:nCls
             if rand(1) > featSelRatio
                 continue;
             end
-            wz_S = i_ws(:, curS).*i_zs(:, curS);
-            wz_nS = i_ws(:, ~curS).*i_zs(:, ~curS);
-            kc = ones(1, nCls)*nan;
-            kc(~curS) = sum(wz_nS, 1)./sum(i_ws(:, ~curS), 1); 
+            
+            % precalc xs
+            if isa(i_xs, 'function_handle')
+                xs = i_xs(1:nData, fInd, i_x_meta);
+            else
+                xs= i_xs(:, fInd);
+            end
+            
             for tInd=1:numel(featValRange)
                 curTheta = featValRange(tInd);
                 
                 % estimate a and b
-                if isa(i_xs, 'function_handle')
-                    delta_pos = i_xs(1:nData, fInd, i_x_meta) > curTheta;
-                else
-                    delta_pos = i_xs(:, fInd) > curTheta;
-                end
-                
+                delta_pos = xs > curTheta;
                 a = sum(sum(bsxfun(@times, wz_S, delta_pos), 1))/sum(sum(bsxfun(@times, i_ws(:, curS), delta_pos), 1));
                 b = sum(sum(bsxfun(@times, wz_S, ~delta_pos), 1))/sum(sum(bsxfun(@times, i_ws(:, curS), ~delta_pos), 1));
                 

@@ -1,4 +1,4 @@
-function [o_cls, o_vals] = EvalJointBoost( i_x, i_mdls, i_params )
+function [o_cls, o_vals] = PredJointBoost( i_x, i_x_meta, i_mdls, i_params )
 
 
 %% init
@@ -6,15 +6,21 @@ M = numel(i_mdls);
 assert(M == i_params.nWeakLearner);
 nCls = i_params.nCls;
 
-featDim = i_params.featDim;
-assert(featDim == size(i_x, 2));
-nData = size(i_x, 1);
+% featDim = i_params.featDim;
+% assert(featDim == size(i_x, 2));
+% nData = size(i_x, 1);
+nData = i_params.nData;
 
 %% eval
 Hs = zeros(nData, nCls);
 for m=1:M
     mdl = i_mdls(m);
-    hs = geths(nData, nCls, i_x(:, mdl.f) > mdl.theta, mdl);
+    if isa(i_x, 'function_handle')
+        x = i_x(1:nData, mdl.f, i_x_meta);
+    else
+        x = i_x(:, mdl.f);
+    end
+    hs = geths(nData, nCls, x > mdl.theta, mdl);
     Hs = Hs + hs;
 end
 

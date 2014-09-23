@@ -1,4 +1,4 @@
-function [ o_mdl ] = LearnSemSeg( i_imgs, i_labels, i_params )
+function [ o_mdl, o_params ] = LearnSemSeg( i_imgs, i_labels, i_params )
 % 
 %   Learn a semantic segmentation model
 %   
@@ -21,7 +21,7 @@ function [ o_mdl ] = LearnSemSeg( i_imgs, i_labels, i_params )
 % ----------
 %   Output:
 % 
-%       o_mdl                   a learned semantic segmentation model
+%       o_mdl                       a learned semantic segmentation model
 % 
 % ----------
 %   Dependency:
@@ -49,6 +49,7 @@ samplingRatio = i_params.feat.samplingRatio;
 %     imgs{iInd} = i_imgs(iInd).img;
 % end
 imgs = i_imgs(1).img;
+imgs = i_imgs;
 %%FIXME: struct array input/struct array output
 % [feat, tbParams] = GetDenseFeature(imgs, {'TextonBoostInt'}, i_params.feat);
 % [feat, tbParams] = GetDenseFeature(imgs, {'TextonBoost'}, i_params.feat); 
@@ -94,7 +95,7 @@ for iInd=1:nImgs
 end
 ixy(:, startInd:end) = [];
 label(startInd:end) = [];
-x_meta = struct('ixy', int32(ixy), 'intImgfeat', double(feat), 'tbParams', tbParams);
+x_meta = struct('ixy', ixy, 'intImgFeat', feat, 'TBParams', tbParams);
 
 % run
 JBParams = i_params.classifier;
@@ -102,14 +103,44 @@ JBParams.nData = numel(label);
 if JBParams.verbosity >= 1
     fprintf('* Train %d data\n', JBParams.nData);
 end
-mdl = TrainJointBoost(@FeatCBFunc, label, JBParams, x_meta);
+% mdl = TrainJointBoost(@FeatCBFunc, label, JBParams, x_meta);
 % mdl = TrainJointBoost(reshape(feat, [size(feat, 1)*size(feat, 2) size(feat, 3)]), label, JBParams);
 
 % check input parameters
-mdl = LearnSemSeq_mex(x_meta, int32(label), JBParams);
+[x_meta_mex, label_mex, JBParams_mex] = convType(x_meta, label, JBParams);
+mexTID = tic;
+mdls = LearnSemSeg_mex(x_meta_mex, label_mex, JBParams_mex);
+fprintf('* Running time LearnSemSeg_mex: %s sec.\n', num2str(toc(mexTID)));
 
 %% return
-o_mdl = struct('JBMdl', mdl, 'TBParams', tbParams);
+o_mdl = mdls; 
+o_params = struct('feat', tbParams, 'classifier', JBParams);
+
+end
+
+function [x_meta_mex, label_mex, JBParams_mex] = convType(x_meta, label, JBParams)
+x_meta_mex = x_meta;
+% x_meta.ixy
+x_meta_mex.ixy = int32(x_meta_mex.ixy);
+% x_meta.intImgfeat
+for iInd=1:numel(x_meta_mex.intImgFeat)
+    x_meta_mex.intImgFeat(iInd).feat = double(x_meta_mex.intImgFeat(iInd).feat);
+end
+% x_meta.tbParams
+x_meta_mex.TBParams.LOFilterWH = int32(x_meta_mex.TBParams.LOFilterWH);
+x_meta_mex.TBParams.nTexton = int32(x_meta_mex.TBParams.nTexton);
+x_meta_mex.TBParams.parts = int32(x_meta_mex.TBParams.parts);
+% label
+label_mex = int32(label(:));
+% JBParams
+JBParams_mex = JBParams;
+JBParams_mex.nWeakLearner = int32(JBParams_mex.nWeakLearner);
+JBParams_mex.featDim = int32(JBParams_mex.featDim);
+JBParams_mex.nData = int32(JBParams_mex.nData);
+JBParams_mex.nCls = int32(JBParams_mex.nCls);
+JBParams_mex.featSelRatio = double(JBParams_mex.featSelRatio);
+JBParams_mex.featValRange = double(JBParams_mex.featValRange(:));
+JBParams_mex.verbosity = int32(JBParams_mex.verbosity);
 
 end
 

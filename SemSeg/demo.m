@@ -1,4 +1,6 @@
 %% init
+addpath(genpath('../Feature')); %%FIXME
+addpath(genpath('../JointBoost')); %%FIXME
 
 % load db
 DBSt = load('DB/nyu_depth_v2_sample.mat');
@@ -39,9 +41,41 @@ JBParams = struct(...
     'verbosity', 1);
 
 % SemSeg params
-params = struct('feat', TBParams, 'classifier', JBParams);
 
 %% learn
-mdl = LearnSemSeg(imgs(trainInd), labels(trainInd), params);
+[mdls, params] = LearnSemSeg(imgs(trainInd), labels(trainInd), struct('feat', TBParams, 'classifier', JBParams));
 
 %% predict
+[cls, vals, mask] = PredSemSeg(imgs(testInd), mdls, params);
+
+
+intImgfeat_test = GetDenseFeature(imgs(testInd), {'TextonBoostInt'}, TBParams);
+intImgfeat_test.feat = single(intImgfeat_test.feat);
+[cls, vals, sampleMask] = PredTBJB( intImgfeat_test, mdls.TBParams, mdls.JBMdl, JBParams );
+
+
+%% show
+
+[rows, cols] = find(sampleMask);
+
+figure(1); clf;
+subplot(1, 2, 1);
+imshow(trImg);
+rectangle('Position', rect, 'EdgeColor', 'r');
+title('training regions represented by the bounding box');
+
+subplot(1, 2, 2);
+imshow(teImg);
+hold on;
+heatMap = zeros(size(sampleMask));
+heatMap(sampleMask) = reshape(cls, [numel(unique(rows)) numel(unique(cols))]);
+heatMap(heatMap ~= 1) = 0;
+heatMap(heatMap == 1) = 255;
+
+
+h = imagesc(heatMap);
+set(h, 'AlphaData', 0.7);
+hold off;
+title('Identified regions by the trained classifier');
+
+
