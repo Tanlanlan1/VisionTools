@@ -38,7 +38,7 @@ nImgs = numel(i_imgs);
 %% extract features and predict
 LOFilterWH_half = (i_params.feat.LOFilterWH-1)/2; 
 imgWH = [size(i_imgs(1).img, 2); size(i_imgs(1).img, 1)];
-nData_approx = round(nImgs*imgWH(1)*imgWH(2)*samplingRatio); %%FIXME: assume same sized images
+nData_approx = round(nImgs*imgWH(1)*imgWH(2)*1); %%FIXME: assume same sized images
 step = 1;
 
 ixy = zeros(3, nData_approx);
@@ -76,7 +76,7 @@ JBParams.nData = size(ixy, 2);
 if JBParams.verbosity >= 1
     fprintf('* Predict %d data\n', JBParams.nData);
 end
-dist = PredSemSeg_mex(x_meta, JBParams);
+dist = PredSemSeg_mex(x_meta, i_mdls, JBParams);
 
 %% return
 [~, o_cls] = max(dist, [], 2);

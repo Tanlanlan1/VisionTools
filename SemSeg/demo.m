@@ -48,10 +48,10 @@ JBParams = struct(...
 %% predict
 [cls, vals, mask] = PredSemSeg(imgs(testInd), mdls, params);
 
-
-intImgfeat_test = GetDenseFeature(imgs(testInd), {'TextonBoostInt'}, TBParams);
-intImgfeat_test.feat = single(intImgfeat_test.feat);
-[cls, vals, sampleMask] = PredTBJB( intImgfeat_test, mdls.TBParams, mdls.JBMdl, JBParams );
+% 
+% intImgfeat_test = GetDenseFeature(imgs(testInd), {'TextonBoostInt'}, TBParams);
+% intImgfeat_test.feat = single(intImgfeat_test.feat);
+% [cls, vals, sampleMask] = PredTBJB( intImgfeat_test, mdls.TBParams, mdls.JBMdl, JBParams );
 
 
 %% show
