@@ -1,8 +1,8 @@
 #include "SemSegUtils.h"
 
 void FitStumpForAllS(
-        struct XMeta &i_x_meta, const mxArray* i_zs, const mxArray* i_ws, const mxArray* i_params, const int i_mInd,
-        mxArray* o_mdls, mxArray* o_hs){
+        struct XMeta &i_x_meta, Mat &i_zs, Mat &i_ws, const mxArray* i_params, const int i_mInd,
+        mxArray* o_mdls, Mat &o_hs){
     // init
     int featDim = *((int *)mxGetData(mxGetField(i_params, 0, "featDim")));
     int nData = *((int *)mxGetData(mxGetField(i_params, 0, "nData")));
@@ -12,7 +12,7 @@ void FitStumpForAllS(
     for(int i=0; i<mxGetNumberOfElements(mxGetField(i_params, 0, "featValRange")); ++i)
         featValRange.push_back(*GetDblPnt(mxGetField(i_params, 0, "featValRange"), i, 0));
     
-    mxArray* xs_tmp = mxCreateDoubleMatrix(nData, 1, mxREAL);
+    
     
     // n* = argmin_n Jwse(n)
     double Jwse_best = mxGetInf();
@@ -41,8 +41,8 @@ void FitStumpForAllS(
                 }else{
                     double n = 0, dn = 0;
                     for(int dInd=0; dInd<nData; ++dInd){
-                        dn += *GetDblPnt(i_ws, dInd, cInd);
-                        n += (*GetDblPnt(i_ws, dInd, cInd))*(*GetDblPnt(i_zs, dInd, cInd));
+                        dn += i_ws.GetRef(dInd, cInd);
+                        n += i_ws.GetRef(dInd, cInd) * i_zs.GetRef(dInd, cInd);
                     }
                     kc_hat[cInd] = n/dn;
                 }
@@ -50,17 +50,17 @@ void FitStumpForAllS(
             
             // fit a stump. Find a weak learner given an S
             double Jwse_S_best = mxGetInf();
-            
+            #pragma omp parallel for
             for(int fInd=0; fInd<featDim; ++fInd){
                 if(((double)(rand()%1000))/1000 > featSelRatio)
                     continue;
                 
                 // precalc xs
+                vector<double> xs_tmp(nData);
                 for(int dInd=0; dInd<nData; ++dInd){ 
-                    (*GetDblPnt(xs_tmp, dInd, 0)) = GetithTextonBoost_new(dInd, fInd, i_x_meta);
+                    xs_tmp[dInd] = GetithTextonBoost_new(dInd, fInd, i_x_meta);
                 }
                 
-                #pragma omp parallel for
                 for(int tInd=0; tInd<featValRange.size(); ++tInd){
                     double curTheta = featValRange[tInd];
                     
@@ -70,10 +70,10 @@ void FitStumpForAllS(
                         if(curS[cInd] == 0)
                             continue;
                         for(int dInd=0; dInd<nData; ++dInd){
-                            n_a += (*GetDblPnt(i_ws, dInd, cInd))*(*GetDblPnt(i_zs, dInd, cInd))*((*GetDblPnt(xs_tmp, dInd, 0))>curTheta);
-                            dn_a += (*GetDblPnt(i_ws, dInd, cInd))*((*GetDblPnt(xs_tmp, dInd, 0))>curTheta);
-                            n_b += (*GetDblPnt(i_ws, dInd, cInd))*(*GetDblPnt(i_zs, dInd, cInd))*((*GetDblPnt(xs_tmp, dInd, 0))<=curTheta);
-                            dn_b += (*GetDblPnt(i_ws, dInd, cInd))*((*GetDblPnt(xs_tmp, dInd, 0))<=curTheta);
+                            n_a += i_ws.GetRef(dInd, cInd) * i_zs.GetRef(dInd, cInd) * (xs_tmp[dInd]>curTheta);
+                            dn_a += i_ws.GetRef(dInd, cInd) * (xs_tmp[dInd]>curTheta);
+                            n_b += i_ws.GetRef(dInd, cInd) * i_zs.GetRef(dInd, cInd) * (xs_tmp[dInd]<=curTheta);
+                            dn_b += i_ws.GetRef(dInd, cInd) * (xs_tmp[dInd]<=curTheta);
                         }
                     }
                     double a_hat = n_a/dn_a;
@@ -98,23 +98,22 @@ void FitStumpForAllS(
                 Jwse_best = Jwse_S_best;
                 CopyMdlVal(mdl_best, 0, mdl_S_best, 0);
                 S = curS;
-            }
-            
+            }   
         }
     }
     
     // free memory and return
     CopyMdlVal(o_mdls, i_mInd, mdl_best, 0);
-    
+    vector<double> xs_tmp(nData);
     for(int dInd=0; dInd<nData; ++dInd)
-        (*GetDblPnt(xs_tmp, dInd, 0)) = GetithTextonBoost_new(dInd, (*GetIntPnt(mxGetField(o_mdls, i_mInd, "f"), 0, 0)), i_x_meta);
+        xs_tmp[dInd] = GetithTextonBoost_new(dInd, (*GetIntPnt(mxGetField(o_mdls, i_mInd, "f"), 0, 0)), i_x_meta);
+
     Geths(o_hs, nData, nCls, xs_tmp, o_mdls, i_mInd);
     
     mxDestroyArray(mdl_best);
     mxDestroyArray(hs_best);
     mxDestroyArray(mdl_S_best);
     mxDestroyArray(hs_S_best);
-    mxDestroyArray(xs_tmp);
 }
 
 mxArray* LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray* i_params){
@@ -124,26 +123,23 @@ mxArray* LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxAr
     int nCls = *GetIntPnt(mxGetField(i_params, 0, "nCls"), 0, 0);
     int verbosity = *GetIntPnt(mxGetField(i_params, 0, "verbosity"), 0, 0);
     
-    // allocate zs, ws
-    mxArray* zs = mxCreateDoubleMatrix(nData, nCls, mxREAL);
-    SetDblVal(zs, -1);
-    mxArray* ws = mxCreateDoubleMatrix(nData, nCls, mxREAL);
-    SetDblVal(ws, 1);
+    // allocate zs, ws    
+    Mat zs(-1, nData, nCls);    
+    Mat ws(1, nData, nCls);
 
     // allocate mdls
     mxArray* mdls = InitMdl(nWeakLearner, nCls);
-    
     
     // init labels
     for(int dInd=0; dInd<nData; ++dInd){
         if((*GetIntPnt(i_ys, dInd, 0)) == 0) // bg
             continue;
-        (*GetDblPnt(zs, dInd, (*GetIntPnt(i_ys, dInd, 0))-1)) = 1; // zero base
+        zs.GetRef(dInd, (*GetIntPnt(i_ys, dInd, 0))-1) = 1; // zero base
     }
 
     // train weak classifiers
     char buf[1024];
-    mxArray *hs = mxCreateDoubleMatrix(nData, nCls, mxREAL);
+    Mat hs(0, nData, nCls);
     for(int m=0; m<nWeakLearner; ++m){
         if(verbosity>=1){
             sprintf(buf, "* boosting iter: %d/%d...", m+1, nWeakLearner);
@@ -161,11 +157,6 @@ mxArray* LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxAr
             fflush(stdout);
         }
     }
-    
-    // free memory
-    mxDestroyArray(zs);
-    mxDestroyArray(ws);
-    mxDestroyArray(hs);
     
     // return
     return mdls;

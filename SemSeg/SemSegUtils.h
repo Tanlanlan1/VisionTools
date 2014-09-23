@@ -16,6 +16,35 @@
 
 using namespace std;
 
+class Mat{ //FIXME: assume double type and two dimensions
+private:
+    vector<double> elems_;
+    int nRows_;
+    int nCols_;
+public:
+    Mat(double i_initVal, int i_nRows, int i_nCols){
+        nRows_ = i_nRows;
+        nCols_ = i_nCols;
+        elems_.resize(nRows_*nCols_);
+        for(int i=0; i<elems_.size(); ++i)
+            elems_[i] = i_initVal;
+    }
+public:
+    double &GetRef(int i_r, int i_c){
+        return elems_[i_r + i_c*nRows_];
+    }
+    double Size(int i_ind){
+        switch(i_ind){
+            case 1:
+                return nRows_;
+            case 2:
+                return nCols_;
+        }
+    }
+    
+    
+};
+
 double* GetDblPnt(const mxArray* i_m, int i_r, int i_c, int i_d){
     const mwSize *pDims = mxGetDimensions(i_m);
     size_t nRows = pDims[0];
@@ -50,15 +79,15 @@ void SetDblVal(mxArray* io_m, double i_val)
             (*GetDblPnt(io_m, r, c)) = i_val;
 }
 
-void UpdWs(mxArray* io_ws, mxArray* i_zs, mxArray* i_hs){
+void UpdWs(Mat &io_ws, Mat &i_zs, Mat &i_hs){
     // ws = ws.*exp(-zs.*hs);
-    size_t nRows = mxGetM(io_ws);
-    size_t nCols = mxGetN(io_ws);
+    int nRows = io_ws.Size(1);
+    int nCols = io_ws.Size(2);
     for(int r=0; r<nRows; ++r)
         for(int c=0; c<nCols; ++c)
-            (*GetDblPnt(io_ws, r, c)) = // ws
-                    (*GetDblPnt(io_ws, r, c))* // ws
-                    exp(-(*GetDblPnt(i_zs, r, c))*(*GetDblPnt(i_hs, r, c))); //exp(-zs.*hs)
+            io_ws.GetRef(r, c) = // ws
+                    io_ws.GetRef(r, c)* // ws
+                    exp(-i_zs.GetRef(r, c)*i_hs.GetRef(r, c)); //exp(-zs.*hs)
 }
 
 struct JBMdl{
@@ -251,7 +280,7 @@ double Geth(double x, double a, double b, double theta, double kc, int S){
     return h;
 }
 
-void Geths(mxArray *o_hs, int i_nData, int i_nCls, const mxArray *i_xs, const mxArray *i_mdl, int i_mInd){
+void Geths(Mat &o_hs, int i_nData, int i_nCls, vector <double> &i_xs, const mxArray *i_mdl, int i_mInd){
     mxArray* a_f = mxGetField(i_mdl, i_mInd, "a");
     mxArray* b_f = mxGetField(i_mdl, i_mInd, "b");
     mxArray* theta_f = mxGetField(i_mdl, i_mInd, "theta");
@@ -260,53 +289,44 @@ void Geths(mxArray *o_hs, int i_nData, int i_nCls, const mxArray *i_xs, const mx
     for(int cInd=0; cInd<i_nCls; ++cInd){
         for(int dInd=0; dInd<i_nData; ++dInd){
             if((*GetIntPnt(S_f, cInd, 0)) == 1){
-                if((*GetDblPnt(i_xs, dInd, cInd))>(*GetDblPnt(theta_f, 0, 0)))
-                    (*GetDblPnt(o_hs, dInd, cInd)) = (*GetDblPnt(a_f, 0, 0));
+                if(i_xs[dInd]>(*GetDblPnt(theta_f, 0, 0)))
+                    o_hs.GetRef(dInd, cInd) = (*GetDblPnt(a_f, 0, 0));
                 else
-                    (*GetDblPnt(o_hs, dInd, cInd)) = (*GetDblPnt(b_f, 0, 0));
+                    o_hs.GetRef(dInd, cInd) = (*GetDblPnt(b_f, 0, 0));
                     
             }else{
-                (*GetDblPnt(o_hs, dInd, cInd)) = (*GetDblPnt(kc_f, cInd, 0));
+                o_hs.GetRef(dInd, cInd) = (*GetDblPnt(kc_f, cInd, 0));
             }
         }
     }
 }
 
-double CalcJwse(const mxArray* i_ws, const mxArray* i_zs, const mxArray* i_hs){
+double CalcJwse(Mat &i_ws, Mat &i_zs, Mat &i_hs){
     // o_cost = sum(sum(i_ws.*(i_zs - i_hs).^2));
-    size_t nRows = mxGetM(i_ws);
-    size_t nCols = mxGetN(i_ws);
+    int nRows = i_ws.Size(1);
+    int nCols = i_ws.Size(2);
     double ret = 0;
     for(int r=0; r<nRows; ++r)
         for(int c=0; c<nCols; ++c){
-            ret += (*GetDblPnt(i_ws, r, c))* //ws
-                    pow((*GetDblPnt(i_zs, r, c))-(*GetDblPnt(i_hs, r, c)), 2.0); //(zs-hs).^2
+            ret += i_ws.GetRef(r, c)* //ws
+                    pow(i_zs.GetRef(r, c)-i_hs.GetRef(r, c), 2.0); //(zs-hs).^2
         }
     return ret;
 }
 
-double CalcJwse_ts(const mxArray* i_ws, const mxArray* i_zs, const mxArray* i_xs, double a, double b, int f, double theta, vector<double> &kc, vector<int> &S){
+double CalcJwse_ts(Mat &i_ws, Mat &i_zs, vector<double> &i_xs, double a, double b, int f, double theta, vector<double> &kc, vector<int> &S){
     // o_cost = sum(sum(i_ws.*(i_zs - i_hs).^2));
-    size_t nRows = mxGetM(i_ws);
-    size_t nCols = mxGetN(i_ws);
+    size_t nRows = i_ws.Size(1);
+    size_t nCols = i_ws.Size(2);
     double ret = 0;
     for(int dInd=0; dInd<nRows; ++dInd)
         for(int cInd=0; cInd<nCols; ++cInd){
             // calc h
-            double h = Geth((*GetDblPnt(i_xs, dInd, cInd)), a, b, theta, kc[cInd], S[cInd]);
-//             double h;
-//             if(S[cInd] == 1){
-//                 if((*GetDblPnt(i_xs, dInd, cInd))>theta)
-//                     h = a;
-//                 else
-//                     h = b;
-//             }else{
-//                 h = kc[cInd];
-//             }
+            double h = Geth(i_xs[dInd], a, b, theta, kc[cInd], S[cInd]);
             
             // i_ws.*(i_zs - i_hs).^2
-            ret += (*GetDblPnt(i_ws, dInd, cInd))* //ws
-                    pow((*GetDblPnt(i_zs, dInd, cInd))-h, 2.0); //(zs-hs).^2
+            ret += i_ws.GetRef(dInd, cInd)* //ws
+                    pow(i_zs.GetRef(dInd, cInd)-h, 2.0); //(zs-hs).^2
         }
     return ret;
 }
