@@ -1,8 +1,8 @@
 #include "SemSegUtils.h"
 
 void FitStumpForAllS(
-        struct XMeta &i_x_meta, Mat &i_zs, Mat &i_ws, const mxArray* i_params, const int i_mInd,
-        mxArray* o_mdls, Mat &o_hs){
+        struct XMeta &i_x_meta, Mat &i_zs, Mat &i_ws, const mxArray* i_params, 
+        JBMdl& o_mdl, Mat &o_hs){
     // init
     int featDim = *((int *)mxGetData(mxGetField(i_params, 0, "featDim")));
     int nData = *((int *)mxGetData(mxGetField(i_params, 0, "nData")));
@@ -13,22 +13,18 @@ void FitStumpForAllS(
         featValRange.push_back(*GetDblPnt(mxGetField(i_params, 0, "featValRange"), i, 0));
     
     
-    
     // n* = argmin_n Jwse(n)
     double Jwse_best = mxGetInf();
-    mxArray* mdl_best = InitMdl(1, nCls);
-    mxArray* hs_best = mxCreateDoubleMatrix(nData, nCls, mxREAL);
-    mxArray* mdl_S_best = InitMdl(1, nCls);
-    mxArray* hs_S_best = mxCreateDoubleMatrix(nData, nCls, mxREAL);;
+    JBMdl mdl_best(nCls);
+    JBMdl mdl_S_best;
     
     // greedly select S(n) 
-    vector<int> S(nCls);
     for(int maxSize=0; maxSize<nCls; ++maxSize){
         for(int candInd=0; candInd<nCls; ++candInd){
-            if(S[candInd] == 1)
+            if(mdl_best.S[candInd] == 1)
                 continue;
             // choose a candidate S
-            vector<int> curS = S;
+            vector<int> curS = mdl_best.S;
             curS[candInd] = 1;
             
             // estimate k, which is independent on f and theta 
@@ -58,7 +54,7 @@ void FitStumpForAllS(
                 // precalc xs
                 vector<double> xs_tmp(nData);
                 for(int dInd=0; dInd<nData; ++dInd){ 
-                    xs_tmp[dInd] = GetithTextonBoost_new(dInd, fInd, i_x_meta);
+                    xs_tmp[dInd] = GetithTextonBoost(dInd, fInd, i_x_meta);
                 }
                 
                 for(int tInd=0; tInd<featValRange.size(); ++tInd){
@@ -80,14 +76,15 @@ void FitStumpForAllS(
                     double b_hat = n_b/dn_b;
 
                     // calc cost
-                    double Jwse_S_f_t = CalcJwse_ts(i_ws, i_zs, xs_tmp, a_hat, b_hat, fInd, curTheta, kc_hat, curS);
+                    JBMdl mdl_tmp(a_hat, b_hat, fInd, curTheta, kc_hat, curS);
+                    double Jwse_S_f_t = CalcJwse(i_ws, i_zs, xs_tmp, mdl_tmp);
                     
                     // keep the best and free memory
                     #pragma omp critical
                     {
                     if(Jwse_S_best > Jwse_S_f_t){
                         Jwse_S_best = Jwse_S_f_t;
-                        SetMdlField(mdl_S_best, a_hat, b_hat, fInd, curTheta, kc_hat, curS);
+                        mdl_S_best = mdl_tmp;
                     }
                     }
                 }
@@ -96,27 +93,21 @@ void FitStumpForAllS(
             // keep the best and free memory
             if(Jwse_best > Jwse_S_best){
                 Jwse_best = Jwse_S_best;
-                CopyMdlVal(mdl_best, 0, mdl_S_best, 0);
-                S = curS;
+                mdl_best = mdl_S_best;
             }   
         }
     }
     
     // free memory and return
-    CopyMdlVal(o_mdls, i_mInd, mdl_best, 0);
+    o_mdl = mdl_best;
     vector<double> xs_tmp(nData);
     for(int dInd=0; dInd<nData; ++dInd)
-        xs_tmp[dInd] = GetithTextonBoost_new(dInd, (*GetIntPnt(mxGetField(o_mdls, i_mInd, "f"), 0, 0)), i_x_meta);
-
-    Geths(o_hs, nData, nCls, xs_tmp, o_mdls, i_mInd);
+        xs_tmp[dInd] = GetithTextonBoost(dInd, o_mdl.f, i_x_meta);
+    Geths(o_hs, nData, nCls, xs_tmp, o_mdl);
     
-    mxDestroyArray(mdl_best);
-    mxDestroyArray(hs_best);
-    mxDestroyArray(mdl_S_best);
-    mxDestroyArray(hs_S_best);
 }
 
-mxArray* LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray* i_params){
+void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray* i_params, vector<JBMdl> &o_mdls){
     // get params
     int nWeakLearner = *GetIntPnt(mxGetField(i_params, 0, "nWeakLearner"), 0, 0);
     int nData = *GetIntPnt(mxGetField(i_params, 0, "nData"), 0, 0);
@@ -128,8 +119,8 @@ mxArray* LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxAr
     Mat ws(1, nData, nCls);
 
     // allocate mdls
-    mxArray* mdls = InitMdl(nWeakLearner, nCls);
-    
+//     mxArray* mdls = InitMdl(nWeakLearner, nCls);
+    o_mdls.resize(nWeakLearner);
     // init labels
     for(int dInd=0; dInd<nData; ++dInd){
         if((*GetIntPnt(i_ys, dInd, 0)) == 0) // bg
@@ -147,7 +138,7 @@ mxArray* LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxAr
         }
         
         // fit a stump
-        FitStumpForAllS(i_x_meta, zs, ws, i_params, m, mdls, hs);
+        FitStumpForAllS(i_x_meta, zs, ws, i_params, o_mdls[m], hs);
         // update ws
         UpdWs(ws, zs, hs);
     
@@ -157,9 +148,6 @@ mxArray* LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxAr
             fflush(stdout);
         }
     }
-    
-    // return
-    return mdls;
 }
 
 
@@ -179,9 +167,16 @@ mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     // struct i_params
     const mxArray* i_params = prhs[2];
     // learn
-    mxArray* mdls = LearnJointBoost(xMeta, i_ys, i_params);
+    int nWeakLearner = *GetIntPnt(mxGetField(i_params, 0, "nWeakLearner"), 0, 0);
+    int nCls = *GetIntPnt(mxGetField(i_params, 0, "nCls"), 0, 0);
+    vector<JBMdl> mdls;
+    mxArray* o_mdls = InitMdl(nWeakLearner, nCls);
+    
+    LearnJointBoost(xMeta, i_ys, i_params, mdls);
+    ConvCMdl2MMdl(mdls, o_mdls);
+    
     // return
-    plhs[0] = mdls;
+    plhs[0] = o_mdls;
 
     return;
 }

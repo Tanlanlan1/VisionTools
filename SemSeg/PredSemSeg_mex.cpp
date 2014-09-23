@@ -14,9 +14,9 @@ mxArray* PredJointBoost(struct XMeta &i_xs_meta, const vector<struct JBMdl>& i_m
             double H = 0;
             for(int m=0; m<nWeakLearner; ++m){
                 // x
-                double x = GetithTextonBoost_new(dInd, i_mdls[m].f, i_xs_meta);
+                double x = GetithTextonBoost(dInd, i_mdls[m].f, i_xs_meta);
                 // h
-                double h = Geth(x, i_mdls[m].a, i_mdls[m].b, i_mdls[m].theta, i_mdls[m].kc[cInd], i_mdls[m].S[cInd]);
+                double h = Geth(x, cInd, i_mdls[m]);
                 // H
                 H += h;
             }
