@@ -39,15 +39,12 @@ nImgs = numel(i_imgs);
 LOFilterWH_half = (i_params.feat.LOFilterWH-1)/2; 
 imgWH = [size(i_imgs(1).img, 2); size(i_imgs(1).img, 1)];
 nData_approx = round(nImgs*imgWH(1)*imgWH(2)*1); %%FIXME: assume same sized images
-step = 1;
 
 ixy = zeros(3, nData_approx);
 startInd = 1;
 for iInd=1:nImgs
     % build sampleMask
-    sampleMask = false(imgWH(2), imgWH(1));
-    [rows, cols] = meshgrid(1:step:imgWH(2), 1:step:imgWH(1));
-    sampleMask(rows, cols) = true;
+    sampleMask = true(imgWH(2), imgWH(1));
     
     % falsify boundaries
     sampleMask(1:LOFilterWH_half(2), :) = false;
@@ -76,7 +73,10 @@ JBParams.nData = size(ixy, 2);
 if JBParams.verbosity >= 1
     fprintf('* Predict %d data\n', JBParams.nData);
 end
-dist = PredSemSeg_mex(x_meta, i_mdls, JBParams);
+[x_meta_mex, JBParams_mex] = convType(x_meta, JBParams);
+mexTID = tic;
+dist = PredSemSeg_mex(x_meta_mex, i_mdls, JBParams_mex);
+fprintf('* Running time PredSemSeg_mex: %s sec.\n', num2str(toc(mexTID)));
 
 %% return
 [~, o_cls] = max(dist, [], 2);
@@ -84,3 +84,27 @@ o_dist = dist;
 o_params = struct('feat', tbParams, 'classifier', JBParams);
 end
 
+
+function [x_meta_mex, JBParams_mex] = convType(x_meta, JBParams)
+x_meta_mex = x_meta;
+% x_meta.ixy
+x_meta_mex.ixy = int32(x_meta_mex.ixy);
+% x_meta.intImgfeat
+for iInd=1:numel(x_meta_mex.intImgFeat)
+    x_meta_mex.intImgFeat(iInd).feat = double(x_meta_mex.intImgFeat(iInd).feat);
+end
+% x_meta.tbParams
+x_meta_mex.TBParams.LOFilterWH = int32(x_meta_mex.TBParams.LOFilterWH);
+x_meta_mex.TBParams.nTexton = int32(x_meta_mex.TBParams.nTexton);
+x_meta_mex.TBParams.parts = int32(x_meta_mex.TBParams.parts);
+% JBParams
+JBParams_mex = JBParams;
+JBParams_mex.nWeakLearner = int32(JBParams_mex.nWeakLearner);
+JBParams_mex.featDim = int32(JBParams_mex.featDim);
+JBParams_mex.nData = int32(JBParams_mex.nData);
+JBParams_mex.nCls = int32(JBParams_mex.nCls);
+JBParams_mex.featSelRatio = double(JBParams_mex.featSelRatio);
+JBParams_mex.featValRange = double(JBParams_mex.featValRange(:));
+JBParams_mex.verbosity = int32(JBParams_mex.verbosity);
+
+end

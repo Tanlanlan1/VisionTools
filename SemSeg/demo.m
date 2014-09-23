@@ -28,7 +28,7 @@ TBParams = struct(...
     'samplingRatio', 0.1, ...
     'nTexton', 64, ...
     'nPart', 16, ...
-    'LOFilterWH', [301; 301], ...
+    'LOFilterWH', [101; 101], ...
     'verbosity', 1);
 
 % JointBoost params
@@ -46,24 +46,18 @@ JBParams = struct(...
 [mdls, params] = LearnSemSeg(imgs(trainInd), labels(trainInd), struct('feat', TBParams, 'classifier', JBParams));
 
 %% predict
-[cls, vals, mask] = PredSemSeg(imgs(testInd), mdls, params);
-
-% 
-% intImgfeat_test = GetDenseFeature(imgs(testInd), {'TextonBoostInt'}, TBParams);
-% intImgfeat_test.feat = single(intImgfeat_test.feat);
-% [cls, vals, sampleMask] = PredTBJB( intImgfeat_test, mdls.TBParams, mdls.JBMdl, JBParams );
-
+[cls, vals, params] = PredSemSeg(imgs(testInd), mdls, params);
 
 %% show
-
+sampleMask = params.feat.sampleMask;
 [rows, cols] = find(sampleMask);
 
-figure(1); clf;
-subplot(1, 2, 1);
-imshow(trImg);
-rectangle('Position', rect, 'EdgeColor', 'r');
-title('training regions represented by the bounding box');
-
+% figure(1); clf;
+% subplot(1, 2, 1);
+% imshow(trImg);
+% rectangle('Position', rect, 'EdgeColor', 'r');
+% title('training regions represented by the bounding box');
+teImg = imgs(testInd).img;
 subplot(1, 2, 2);
 imshow(teImg);
 hold on;

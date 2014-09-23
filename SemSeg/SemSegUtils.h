@@ -61,60 +61,6 @@ void UpdWs(mxArray* io_ws, mxArray* i_zs, mxArray* i_hs){
                     exp(-(*GetDblPnt(i_zs, r, c))*(*GetDblPnt(i_hs, r, c))); //exp(-zs.*hs)
 }
 
-double CalcJwse(const mxArray* i_ws, const mxArray* i_zs, const mxArray* i_hs){
-    // o_cost = sum(sum(i_ws.*(i_zs - i_hs).^2));
-    size_t nRows = mxGetM(i_ws);
-    size_t nCols = mxGetN(i_ws);
-    double ret = 0;
-    for(int r=0; r<nRows; ++r)
-        for(int c=0; c<nCols; ++c){
-            ret += (*GetDblPnt(i_ws, r, c))* //ws
-                    pow((*GetDblPnt(i_zs, r, c))-(*GetDblPnt(i_hs, r, c)), 2.0); //(zs-hs).^2
-        }
-    return ret;
-}
-
-double Geth(double x, double a, double b, double theta, double kc, double S){
-    // calc h
-    double h;
-    if(S == 1){
-        if(x>theta)
-            h = a;
-        else
-            h = b;
-    }else{
-        h = kc;
-    }
-    
-    // return
-    return h;
-}
-
-double CalcJwse_ts(const mxArray* i_ws, const mxArray* i_zs, const mxArray* i_xs, double a, double b, int f, double theta, vector<double> &kc, vector<int> &S){
-    // o_cost = sum(sum(i_ws.*(i_zs - i_hs).^2));
-    size_t nRows = mxGetM(i_ws);
-    size_t nCols = mxGetN(i_ws);
-    double ret = 0;
-    for(int dInd=0; dInd<nRows; ++dInd)
-        for(int cInd=0; cInd<nCols; ++cInd){
-            // calc h
-            double h = Geth((*GetDblPnt(i_xs, dInd, cInd)), a, b, theta, kc[cInd], S[cInd]);
-//             double h;
-//             if(S[cInd] == 1){
-//                 if((*GetDblPnt(i_xs, dInd, cInd))>theta)
-//                     h = a;
-//                 else
-//                     h = b;
-//             }else{
-//                 h = kc[cInd];
-//             }
-            
-            // i_ws.*(i_zs - i_hs).^2
-            ret += (*GetDblPnt(i_ws, dInd, cInd))* //ws
-                    pow((*GetDblPnt(i_zs, dInd, cInd))-h, 2.0); //(zs-hs).^2
-        }
-    return ret;
-}
 
 mxArray* InitMdl(int i_n, double i_nCls){
     const char * fnames[] = {"a", "b", "f", "theta", "kc", "S"};
@@ -186,6 +132,21 @@ void CopyhsVal(mxArray *o_hs, mxArray *i_hs){
     }
 }
 
+double Geth(double x, double a, double b, double theta, double kc, int S){
+    // calc h
+    double h;
+    if(S == 1){
+        if(x>theta)
+            h = a;
+        else
+            h = b;
+    }else{
+        h = kc;
+    }
+    
+    // return
+    return h;
+}
 
 void Geths(mxArray *o_hs, int i_nData, int i_nCls, const mxArray *i_xs, const mxArray *i_mdl, int i_mInd){
     mxArray* a_f = mxGetField(i_mdl, i_mInd, "a");
@@ -207,6 +168,46 @@ void Geths(mxArray *o_hs, int i_nData, int i_nCls, const mxArray *i_xs, const mx
         }
     }
 }
+
+double CalcJwse(const mxArray* i_ws, const mxArray* i_zs, const mxArray* i_hs){
+    // o_cost = sum(sum(i_ws.*(i_zs - i_hs).^2));
+    size_t nRows = mxGetM(i_ws);
+    size_t nCols = mxGetN(i_ws);
+    double ret = 0;
+    for(int r=0; r<nRows; ++r)
+        for(int c=0; c<nCols; ++c){
+            ret += (*GetDblPnt(i_ws, r, c))* //ws
+                    pow((*GetDblPnt(i_zs, r, c))-(*GetDblPnt(i_hs, r, c)), 2.0); //(zs-hs).^2
+        }
+    return ret;
+}
+
+double CalcJwse_ts(const mxArray* i_ws, const mxArray* i_zs, const mxArray* i_xs, double a, double b, int f, double theta, vector<double> &kc, vector<int> &S){
+    // o_cost = sum(sum(i_ws.*(i_zs - i_hs).^2));
+    size_t nRows = mxGetM(i_ws);
+    size_t nCols = mxGetN(i_ws);
+    double ret = 0;
+    for(int dInd=0; dInd<nRows; ++dInd)
+        for(int cInd=0; cInd<nCols; ++cInd){
+            // calc h
+            double h = Geth((*GetDblPnt(i_xs, dInd, cInd)), a, b, theta, kc[cInd], S[cInd]);
+//             double h;
+//             if(S[cInd] == 1){
+//                 if((*GetDblPnt(i_xs, dInd, cInd))>theta)
+//                     h = a;
+//                 else
+//                     h = b;
+//             }else{
+//                 h = kc[cInd];
+//             }
+            
+            // i_ws.*(i_zs - i_hs).^2
+            ret += (*GetDblPnt(i_ws, dInd, cInd))* //ws
+                    pow((*GetDblPnt(i_zs, dInd, cInd))-h, 2.0); //(zs-hs).^2
+        }
+    return ret;
+}
+
 
 double GetithTextonBoost(int dInd, int fInd, const mxArray* i_x_meta){
     //i_tbParams.parts(:, i)      ith rectangle in the form of [xmin; xmax; ymin; ymax] 

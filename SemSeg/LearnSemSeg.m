@@ -143,8 +143,3 @@ JBParams_mex.featValRange = double(JBParams_mex.featValRange(:));
 JBParams_mex.verbosity = int32(JBParams_mex.verbosity);
 
 end
-
-function [o_val] = FeatCBFunc(i_i, i_fInd, i_meta)
-o_val = GetithTextonBoost( i_meta.intImgfeat, i_meta.ixy(:, i_i), i_fInd, i_meta.tbParams );
-end
-

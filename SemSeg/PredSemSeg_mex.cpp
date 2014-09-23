@@ -6,28 +6,30 @@ mxArray* PredJointBoost(const mxArray* i_xs_meta, const mxArray *i_mdls, const m
     int nData = *GetIntPnt(mxGetField(i_params, 0, "nData"), 0, 0);
     int nCls = *GetIntPnt(mxGetField(i_params, 0, "nCls"), 0, 0);
 
-
     // predict
     mxArray* Hs = mxCreateDoubleMatrix(nData, nCls, mxREAL);
-    mxArray* hs = mxCreateDoubleMatrix(nData, nCls, mxREAL);
-    
-    for(int m=0; m<nWeakLearner; ++m){
-        double a = *GetDblPnt(mxGetField(i_mdls, m, "a"), 0, 0);
-        double b = *GetDblPnt(mxGetField(i_mdls, m, "b"), 0, 0);
-        int f = *GetIntPnt(mxGetField(i_mdls, m, "f"), 0, 0);
-        double theta = *GetDblPnt(mxGetField(i_mdls, m, "theta"), 0, 0);
-        mxArray* kc = mxGetField(i_mdls, m, "kc");
-        mxArray* S = mxGetField(i_mdls, m, "S");
-        for(int cInd=0; cInd<nCls; ++cInd){
-            #pragma omp parallel for
-            for(int dInd=0; dInd<nData; ++dInd){
+//     #pragma omp parallel for shared(Hs, i_xs_meta, i_mdls, i_params, nWeakLearner, nData, nCls)
+    for(int cInd=0; cInd<nCls; ++cInd){    
+//         #pragma omp parallel for
+        for(int dInd=0; dInd<nData; ++dInd){
+        
+            double H = 0;
+            for(int m=0; m<nWeakLearner; ++m){
+                // params
+                double a = *GetDblPnt(mxGetField(i_mdls, m, "a"), 0, 0);
+                double b = *GetDblPnt(mxGetField(i_mdls, m, "b"), 0, 0);
+                int f = *GetIntPnt(mxGetField(i_mdls, m, "f"), 0, 0);
+                double theta = *GetDblPnt(mxGetField(i_mdls, m, "theta"), 0, 0);
+                mxArray* kc = mxGetField(i_mdls, m, "kc");
+                mxArray* S = mxGetField(i_mdls, m, "S");
                 // x
                 double x = GetithTextonBoost(dInd, f, i_xs_meta);
                 // h
-                double h = Geth(x, a, b, theta, *GetDblPnt(kc, cInd, 0), *GetDblPnt(S, cInd, 0));
+                double h = Geth(x, a, b, theta, *GetDblPnt(kc, cInd, 0), *GetIntPnt(S, cInd, 0));
                 // H
-                (*GetDblPnt(Hs, dInd, cInd)) = (*GetDblPnt(Hs, dInd, cInd)) + h;
-            }   
+                H += h;
+            }
+            (*GetDblPnt(Hs, dInd, cInd)) = H;
         }
     }
     
