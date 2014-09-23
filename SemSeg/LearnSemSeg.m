@@ -43,16 +43,6 @@ assert(numel(i_imgs) == 1);
 nImgs = numel(i_imgs);
 %%FIXME: use same samplingRatio for texton and jointboost
 samplingRatio = i_params.feat.samplingRatio;
-%% extract image features (TextonBoost)
-% imgs = cell(nImgs, 1);
-% for iInd=1:nImgs
-%     imgs{iInd} = i_imgs(iInd).img;
-% end
-imgs = i_imgs(1).img;
-imgs = i_imgs;
-%%FIXME: struct array input/struct array output
-% [feat, tbParams] = GetDenseFeature(imgs, {'TextonBoostInt'}, i_params.feat);
-% [feat, tbParams] = GetDenseFeature(imgs, {'TextonBoost'}, i_params.feat); 
 
 %% learn a classifier (JointBoost)
 
@@ -76,9 +66,9 @@ for iInd=1:nImgs
     sampleMask(:, 1:LOFilterWH_half(1)) = false;
     sampleMask(:, imgWH(1)-LOFilterWH_half(1):end, :) = false;
     
-    % feature %%FIXME: tmp location!
+    % extract feature (TextonBoost)
     i_params.feat.sampleMask = sampleMask;
-    [feat, tbParams] = GetDenseFeature(imgs, {'TextonBoostInt'}, i_params.feat); 
+    [feat, tbParams] = GetDenseFeature(i_imgs(iInd), {'TextonBoostInt'}, i_params.feat); 
     
     % construct meta data
     [rows, cols] = find(sampleMask);
@@ -103,14 +93,15 @@ JBParams.nData = numel(label);
 if JBParams.verbosity >= 1
     fprintf('* Train %d data\n', JBParams.nData);
 end
-% mdl = TrainJointBoost(@FeatCBFunc, label, JBParams, x_meta);
-% mdl = TrainJointBoost(reshape(feat, [size(feat, 1)*size(feat, 2) size(feat, 3)]), label, JBParams);
-
 % check input parameters
 [x_meta_mex, label_mex, JBParams_mex] = convType(x_meta, label, JBParams);
-mexTID = tic;
+if JBParams.verbosity >= 1
+    mexTID = tic;
+end
 mdls = LearnSemSeg_mex(x_meta_mex, label_mex, JBParams_mex);
-fprintf('* Running time LearnSemSeg_mex: %s sec.\n', num2str(toc(mexTID)));
+if JBParams.verbosity >= 1
+    fprintf('* Running time LearnSemSeg_mex: %s sec.\n', num2str(toc(mexTID)));
+end
 
 %% return
 o_mdl = mdls; 
