@@ -61,6 +61,109 @@ void UpdWs(mxArray* io_ws, mxArray* i_zs, mxArray* i_hs){
                     exp(-(*GetDblPnt(i_zs, r, c))*(*GetDblPnt(i_hs, r, c))); //exp(-zs.*hs)
 }
 
+struct JBMdl{
+    double a;
+    double b;
+    int f;
+    double theta;
+    vector<double> kc;
+    vector<int> S;
+};
+
+void ConvMMdl2CMdl(const mxArray* i_mdls, vector<struct JBMdl> &o_mdls){
+    int nMdls = mxGetNumberOfElements(i_mdls);
+    for(int mInd=0; mInd<nMdls; ++mInd){
+        
+        struct JBMdl mdl;
+        mdl.a = *GetDblPnt(mxGetField(i_mdls, mInd, "a"), 0, 0);
+        mdl.b = *GetDblPnt(mxGetField(i_mdls, mInd, "b"), 0, 0);
+        mdl.f = *GetIntPnt(mxGetField(i_mdls, mInd, "f"), 0, 0);
+        mdl.theta = *GetDblPnt(mxGetField(i_mdls, mInd, "theta"), 0, 0);
+        mxArray* kc = mxGetField(i_mdls, mInd, "kc");
+        mxArray* S = mxGetField(i_mdls, mInd, "S");
+        for(int cInd=0; cInd<mxGetNumberOfElements(kc); ++cInd){
+            mdl.kc.push_back(*GetDblPnt(kc, cInd, 0));
+            mdl.S.push_back(*GetIntPnt(S, cInd, 0));
+        }
+                
+        o_mdls.push_back(mdl);
+    }
+}
+
+struct TBParams{
+    int LOFilterWH[2];
+    int nTextons;
+    vector<double> parts; // 4xnPart matrix
+};
+
+void ConvMTBParams2CTBParams(const mxArray* i_TBParams, struct TBParams &o_TBParams){
+    
+    // LOFilterWH
+    o_TBParams.LOFilterWH[0] = (*GetIntPnt(mxGetField(i_TBParams, 0, "LOFilterWH"), 0, 0));
+    o_TBParams.LOFilterWH[1] = (*GetIntPnt(mxGetField(i_TBParams, 0, "LOFilterWH"), 1, 0));
+    
+    // nTexton
+    o_TBParams.nTextons = (*GetIntPnt(mxGetField(i_TBParams, 0, "nTexton"), 0, 0));
+    
+    // parts
+    mxArray *parts = mxGetField(i_TBParams, 0, "parts");
+    int nParts = mxGetN(parts);
+    for(int pInd=0; pInd<nParts; ++pInd){
+        o_TBParams.parts.push_back((*GetIntPnt(parts, 0, pInd)));
+        o_TBParams.parts.push_back((*GetIntPnt(parts, 1, pInd)));
+        o_TBParams.parts.push_back((*GetIntPnt(parts, 2, pInd)));
+        o_TBParams.parts.push_back((*GetIntPnt(parts, 3, pInd)));
+    }
+}
+
+struct IntImgFeat{
+    vector<double> feat;
+    int nRows;
+    int nCols;
+    int nDeps;
+};
+
+void ConvMXIntImgFeat2CIntImgFeat(const mxArray* i_intImgFeat, vector<struct IntImgFeat> &o_intImgFeat){
+    int nImgs = mxGetNumberOfElements(i_intImgFeat);
+    for(int iInd=0; iInd<nImgs; ++iInd){
+        struct IntImgFeat intImgFeat;
+        mxArray *curIntImg = mxGetField(i_intImgFeat, iInd, "feat");
+        const mwSize *dims = mxGetDimensions(curIntImg);
+        int nRows = dims[0];
+        int nCols = dims[1];
+        int nDeps = dims[2];
+        for(int k=0; k<nDeps; ++k)
+            for(int j=0; j<nCols; ++j)
+                for(int i=0; i<nRows; ++i)
+                    intImgFeat.feat.push_back(*GetDblPnt(curIntImg, i, j, k));
+        intImgFeat.nRows = nRows;
+        intImgFeat.nCols = nCols;
+        intImgFeat.nDeps = nDeps;
+        
+        o_intImgFeat.push_back(intImgFeat);
+    }
+}
+
+struct XMeta{
+    vector<struct IntImgFeat> intImgFeat;
+    struct TBParams TBParams;
+    vector<int> ixys;
+};
+
+void ConvMXMeta2CXMeta(const mxArray* i_x_meta, struct XMeta &o_x_meta){
+    
+    // intImgFeat
+    ConvMXIntImgFeat2CIntImgFeat(mxGetField(i_x_meta, 0, "intImgFeat"), o_x_meta.intImgFeat);
+    // TBParams
+    ConvMTBParams2CTBParams(mxGetField(i_x_meta, 0, "TBParams"), o_x_meta.TBParams);
+    // ixy
+    mxArray* ixys = mxGetField(i_x_meta, 0, "ixy");
+    for(int j=0; j<mxGetN(ixys); ++j){
+        for(int i=0; i<mxGetM(ixys); ++i){
+            o_x_meta.ixys.push_back(*GetIntPnt(ixys, i, j));
+        }
+    }
+}
 
 mxArray* InitMdl(int i_n, double i_nCls){
     const char * fnames[] = {"a", "b", "f", "theta", "kc", "S"};
@@ -223,7 +326,6 @@ double GetithTextonBoost(int dInd, int fInd, const mxArray* i_x_meta){
     LOFWH[1] = (*GetIntPnt(mxGetField(TBParams, 0, "LOFilterWH"), 1, 0));
     
     int nTextons = (*GetIntPnt(mxGetField(TBParams, 0, "nTexton"), 0, 0));
-    int nParts = mxGetN(mxGetField(TBParams, 0, "parts"));
     
     int pInd = (int)floor(((double)fInd)/((double)nTextons)); // zero-base
     int tInd = fInd - pInd*nTextons; // zero-base
@@ -250,18 +352,71 @@ double GetithTextonBoost(int dInd, int fInd, const mxArray* i_x_meta){
     xy_part_br[0] = LOF_tl[0] + part[1];
     xy_part_br[1] = LOF_tl[1] + part[3];
     
-    // extract
-    
+    // extract and return
     mxArray *curIntImg = mxGetField(intImgFeat, ixy[0], "feat");
-    double partArea = (xy_part_br[0] - xy_part_tl[0] + 1)*(xy_part_br[1] - xy_part_tl[1] + 1);
-    double I1 = *GetDblPnt(curIntImg, xy_part_br[1]+1, xy_part_br[0]+1, tInd); // one base due to the convention of an integral image
-    double I2 = *GetDblPnt(curIntImg, xy_part_tl[1]  , xy_part_br[0]+1, tInd); // one base due to the convention of an integral image
-    double I3 = *GetDblPnt(curIntImg, xy_part_br[1]+1, xy_part_tl[0]  , tInd); // one base due to the convention of an integral image
-    double I4 = *GetDblPnt(curIntImg, xy_part_tl[1]  , xy_part_tl[0]  , tInd); // one base due to the convention of an integral image
-    double val = (I1 - I2 - I3 + I4)/partArea;
-    
-    // return
-    return val;
+    return (
+            *GetDblPnt(curIntImg, xy_part_br[1]+1, xy_part_br[0]+1, tInd) - 
+            *GetDblPnt(curIntImg, xy_part_tl[1]  , xy_part_br[0]+1, tInd) - 
+            *GetDblPnt(curIntImg, xy_part_br[1]+1, xy_part_tl[0]  , tInd) + 
+            *GetDblPnt(curIntImg, xy_part_tl[1]  , xy_part_tl[0]  , tInd))/
+            ((xy_part_br[0] - xy_part_tl[0] + 1)*(xy_part_br[1] - xy_part_tl[1] + 1));
 }
+
+double GetithTextonBoost_new(int dInd, int fInd, struct XMeta &i_x_meta){
+    //i_tbParams.parts(:, i)      ith rectangle in the form of [xmin; xmax; ymin; ymax] 
+    //x_meta = struct('ixy', int32(ixy), 'intImgFeat', double(feat), 'TBParams', TBParams);       
+    
+    // init
+    int LOFWH[2];
+    LOFWH[0] = i_x_meta.TBParams.LOFilterWH[0];
+    LOFWH[1] = i_x_meta.TBParams.LOFilterWH[1];
+    
+    int nTextons = i_x_meta.TBParams.nTextons;
+    
+    int pInd = (int)floor(((double)fInd)/((double)nTextons)); // zero-base
+    int tInd = fInd - pInd*nTextons; // zero-base
+    int part[4];
+    part[0] = i_x_meta.TBParams.parts[0 + 4*pInd] - 1; // zero-base 
+    part[1] = i_x_meta.TBParams.parts[1 + 4*pInd] - 1; // zero-base
+    part[2] = i_x_meta.TBParams.parts[2 + 4*pInd] - 1; // zero-base
+    part[3] = i_x_meta.TBParams.parts[3 + 4*pInd] - 1; // zero-base
+    
+    int ixy[3];
+    ixy[0] = i_x_meta.ixys[0 + 3*dInd] - 1; // zero-base
+    ixy[1] = i_x_meta.ixys[1 + 3*dInd] - 1; // zero-base
+    ixy[2] = i_x_meta.ixys[2 + 3*dInd] - 1; // zero-base
+    
+    int LOF_tl[2];
+    LOF_tl[0] = ixy[1] - ((int)(LOFWH[0]-1)/2);
+    LOF_tl[1] = ixy[2] - ((int)(LOFWH[1]-1)/2);
+            
+    int xy_part_tl[2];
+    xy_part_tl[0] = LOF_tl[0] + part[0];
+    xy_part_tl[1] = LOF_tl[1] + part[2];
+    
+    int xy_part_br[2];
+    xy_part_br[0] = LOF_tl[0] + part[1];
+    xy_part_br[1] = LOF_tl[1] + part[3];
+    
+    // extract and return
+    int nIntImgRows = i_x_meta.intImgFeat[ixy[0]].nRows;
+    int nIntImgCols = i_x_meta.intImgFeat[ixy[0]].nCols;
+    double I1 = i_x_meta.intImgFeat[ixy[0]].feat[(xy_part_br[1]+1) + nIntImgRows*(xy_part_br[0]+1) + nIntImgRows*nIntImgCols*tInd];
+    double I2 = i_x_meta.intImgFeat[ixy[0]].feat[(xy_part_tl[1]) + nIntImgRows*(xy_part_br[0]+1) + nIntImgRows*nIntImgCols*tInd];
+    double I3 = i_x_meta.intImgFeat[ixy[0]].feat[(xy_part_br[1]+1) + nIntImgRows*(xy_part_tl[0]) + nIntImgRows*nIntImgCols*tInd];
+    double I4 = i_x_meta.intImgFeat[ixy[0]].feat[(xy_part_tl[1]) + nIntImgRows*(xy_part_tl[0]) + nIntImgRows*nIntImgCols*tInd];
+    double Area = (xy_part_br[0] - xy_part_tl[0] + 1)*(xy_part_br[1] - xy_part_tl[1] + 1);
+    return (I1-I2-I3+I4)/Area;
+    
+    
+//     mxArray *curIntImg = mxGetField(i_x_meta.intImgFeat, ixy[0], "feat");
+//     return (
+//             *GetDblPnt(curIntImg, xy_part_br[1]+1, xy_part_br[0]+1, tInd) - 
+//             *GetDblPnt(curIntImg, xy_part_tl[1]  , xy_part_br[0]+1, tInd) - 
+//             *GetDblPnt(curIntImg, xy_part_br[1]+1, xy_part_tl[0]  , tInd) + 
+//             *GetDblPnt(curIntImg, xy_part_tl[1]  , xy_part_tl[0]  , tInd))/
+//             ((xy_part_br[0] - xy_part_tl[0] + 1)*(xy_part_br[1] - xy_part_tl[1] + 1));
+}
+
 
 #endif

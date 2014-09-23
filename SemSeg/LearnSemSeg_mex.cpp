@@ -1,7 +1,7 @@
 #include "SemSegUtils.h"
 
 void FitStumpForAllS(
-        const mxArray* i_x_meta, const mxArray* i_zs, const mxArray* i_ws, const mxArray* i_params, const int i_mInd,
+        struct XMeta &i_x_meta, const mxArray* i_zs, const mxArray* i_ws, const mxArray* i_params, const int i_mInd,
         mxArray* o_mdls, mxArray* o_hs){
     // init
     int featDim = *((int *)mxGetData(mxGetField(i_params, 0, "featDim")));
@@ -57,7 +57,7 @@ void FitStumpForAllS(
                 
                 // precalc xs
                 for(int dInd=0; dInd<nData; ++dInd){ 
-                    (*GetDblPnt(xs_tmp, dInd, 0)) = GetithTextonBoost(dInd, fInd, i_x_meta);
+                    (*GetDblPnt(xs_tmp, dInd, 0)) = GetithTextonBoost_new(dInd, fInd, i_x_meta);
                 }
                 
                 #pragma omp parallel for
@@ -104,12 +104,10 @@ void FitStumpForAllS(
     }
     
     // free memory and return
-    
-    
     CopyMdlVal(o_mdls, i_mInd, mdl_best, 0);
     
     for(int dInd=0; dInd<nData; ++dInd)
-        (*GetDblPnt(xs_tmp, dInd, 0)) = GetithTextonBoost(dInd, (*GetIntPnt(mxGetField(o_mdls, i_mInd, "f"), 0, 0)), i_x_meta);
+        (*GetDblPnt(xs_tmp, dInd, 0)) = GetithTextonBoost_new(dInd, (*GetIntPnt(mxGetField(o_mdls, i_mInd, "f"), 0, 0)), i_x_meta);
     Geths(o_hs, nData, nCls, xs_tmp, o_mdls, i_mInd);
     
     mxDestroyArray(mdl_best);
@@ -119,7 +117,7 @@ void FitStumpForAllS(
     mxDestroyArray(xs_tmp);
 }
 
-mxArray* LearnJointBoost(const mxArray* i_x_meta, const mxArray* i_ys, const mxArray* i_params){
+mxArray* LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray* i_params){
     // get params
     int nWeakLearner = *GetIntPnt(mxGetField(i_params, 0, "nWeakLearner"), 0, 0);
     int nData = *GetIntPnt(mxGetField(i_params, 0, "nData"), 0, 0);
@@ -182,13 +180,15 @@ mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     omp_set_num_threads(NTHREAD); // override env var OMP_NUM_THREADS
     
     // i_xs
-    const mxArray* i_xs_meta = prhs[0];
+    const mxArray* xs_meta = prhs[0];
+    struct XMeta xMeta;
+    ConvMXMeta2CXMeta(xs_meta, xMeta);
     // double* i_ys
     const mxArray* i_ys = prhs[1];
     // struct i_params
     const mxArray* i_params = prhs[2];
     // learn
-    mxArray* mdls = LearnJointBoost(i_xs_meta, i_ys, i_params);
+    mxArray* mdls = LearnJointBoost(xMeta, i_ys, i_params);
     // return
     plhs[0] = mdls;
 

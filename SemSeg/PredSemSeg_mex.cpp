@@ -1,6 +1,6 @@
 #include "SemSegUtils.h"
 
-mxArray* PredJointBoost(const mxArray* i_xs_meta, const mxArray *i_mdls, const mxArray *i_params){
+mxArray* PredJointBoost(struct XMeta &i_xs_meta, const vector<struct JBMdl>& i_mdls, const mxArray *i_params){
     // init
     int nWeakLearner = *GetIntPnt(mxGetField(i_params, 0, "nWeakLearner"), 0, 0);
     int nData = *GetIntPnt(mxGetField(i_params, 0, "nData"), 0, 0);
@@ -8,24 +8,15 @@ mxArray* PredJointBoost(const mxArray* i_xs_meta, const mxArray *i_mdls, const m
 
     // predict
     mxArray* Hs = mxCreateDoubleMatrix(nData, nCls, mxREAL);
-//     #pragma omp parallel for shared(Hs, i_xs_meta, i_mdls, i_params, nWeakLearner, nData, nCls)
-    for(int cInd=0; cInd<nCls; ++cInd){    
-//         #pragma omp parallel for
-        for(int dInd=0; dInd<nData; ++dInd){
-        
+    #pragma omp parallel for
+    for(int dInd=0; dInd<nData; ++dInd){
+        for(int cInd=0; cInd<nCls; ++cInd){    
             double H = 0;
             for(int m=0; m<nWeakLearner; ++m){
-                // params
-                double a = *GetDblPnt(mxGetField(i_mdls, m, "a"), 0, 0);
-                double b = *GetDblPnt(mxGetField(i_mdls, m, "b"), 0, 0);
-                int f = *GetIntPnt(mxGetField(i_mdls, m, "f"), 0, 0);
-                double theta = *GetDblPnt(mxGetField(i_mdls, m, "theta"), 0, 0);
-                mxArray* kc = mxGetField(i_mdls, m, "kc");
-                mxArray* S = mxGetField(i_mdls, m, "S");
                 // x
-                double x = GetithTextonBoost(dInd, f, i_xs_meta);
+                double x = GetithTextonBoost_new(dInd, i_mdls[m].f, i_xs_meta);
                 // h
-                double h = Geth(x, a, b, theta, *GetDblPnt(kc, cInd, 0), *GetIntPnt(S, cInd, 0));
+                double h = Geth(x, i_mdls[m].a, i_mdls[m].b, i_mdls[m].theta, i_mdls[m].kc[cInd], i_mdls[m].S[cInd]);
                 // H
                 H += h;
             }
@@ -46,13 +37,17 @@ mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     omp_set_num_threads(NTHREAD); // override env var OMP_NUM_THREADS
     
     // i_xs
-    const mxArray* i_xs_meta = prhs[0];
+    const mxArray* xs_meta = prhs[0];
+    struct XMeta xMeta;
+    ConvMXMeta2CXMeta(xs_meta, xMeta);
     // i_mdls
     const mxArray* i_mdls = prhs[1];
+    vector<struct JBMdl> mdls_cpp;
+    ConvMMdl2CMdl(i_mdls, mdls_cpp);
     // struct i_params
     const mxArray* i_params = prhs[2];
     // learn
-    mxArray* dist = PredJointBoost(i_xs_meta, i_mdls, i_params);
+    mxArray* dist = PredJointBoost(xMeta, mdls_cpp, i_params);
     // return
     plhs[0] = dist;
 
