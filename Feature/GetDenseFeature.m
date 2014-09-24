@@ -22,7 +22,7 @@ function [ o_feat, o_params ] = GetDenseFeature( i_imgs, i_cues, i_params )
 %           i_params.nPart          ('textonBoost') the number of a subwindow
 %           i_params.LOFilterWH     ('textonBoost') the width and height of a
 %                                   layout filter
-%           i_params.sampleMask     ('textonBoost' or for all) extract features only
+%           i_params.sampleMask(rm)     ('textonBoost' or for all) extract features only
 %                                   on the selected region (FIXME: use samplingRatio)
 % 
 % ----------

@@ -44,20 +44,27 @@ assert(numel(i_imgs) == 1);
 if ~isfield(i_params, 'pad')
     i_params.pad = false;
 end
+if ~isfield(i_params, 'nPerClsSample')
+    i_params.nPerClsSample = 100;
+end
+
 
 nImgs = numel(i_imgs);
 samplingRatio = i_params.feat.samplingRatio; %%FIXME: mask? saplingratio? duplicated
+nPerClsSample = i_params.nPerClsSample;
 tbParams = i_params.feat;
+nCls = i_params.classifier.nCls;
 
 %% learn a classifier (JointBoost)
 
 % buid meta data for FeatCBFunc and labels
 LOFilterWH_half = (i_params.feat.LOFilterWH-1)/2; 
-nData_approx = round(nImgs*size(i_imgs(1).img, 2)*size(i_imgs(1).img, 1)*samplingRatio); %%FIXME: assume same sized images
-step = round(1/samplingRatio);
+% nData_approx = round(nImgs*size(i_imgs(1).img, 2)*size(i_imgs(1).img, 1)*samplingRatio); %%FIXME: assume same sized images
+nData_approx = round(nImgs*size(i_imgs(1).img, 2)*size(i_imgs(1).img, 1)); %%FIXME: assume same sized images
+% step = round(1/samplingRatio);
 
 % extract Texton
-[~, tbParams] = GetDenseFeature(i_imgs, {'Texton'}, tbParams); 
+[~, tbParams] = GetDenseFeature(i_imgs, {'Texton'}, tbParams); %%FIXME: sampling points are different with JointBoost
 
 ixy = zeros(3, nData_approx);
 label = zeros(nData_approx, 1);
@@ -73,32 +80,70 @@ for iInd=1:nImgs
     end
     imgWH = [size(curImg.img, 2); size(curImg.img, 1)];
     
-    % build sampleMask
-    sampleMask = false(imgWH(2), imgWH(1));
-    [rows, cols] = meshgrid(1:step:imgWH(2), 1:step:imgWH(1));
-    sampleMask(rows, cols) = true;
-    % falsify boundaries
-    sampleMask(1:LOFilterWH_half(2), :) = false;
-    sampleMask(imgWH(2)-LOFilterWH_half(2):end, :) = false;
-    sampleMask(:, 1:LOFilterWH_half(1)) = false;
-    sampleMask(:, imgWH(1)-LOFilterWH_half(1):end, :) = false;
-    
     % extract feature (TextonBoost) 
-    i_params.feat.sampleMask = sampleMask;
     [feat, tbParams] = GetDenseFeature(curImg, {'TextonBoostInt'}, tbParams); 
     
-    % construct meta data
-    [rows, cols] = find(sampleMask);
-    xy = [cols'; rows']; % be careful the order
-    ixy(:, startInd:startInd+size(xy, 2)-1) = [iInd*ones(1, size(xy, 2)); xy];
+    % build sampleMask %%FIXME: should be balanced across images also...
+    % falsify boundaries
+    curLabel.cls(1:LOFilterWH_half(2), :) = nan;
+    curLabel.cls(imgWH(2)-LOFilterWH_half(2):end, :) = nan;
+    curLabel.cls(:, 1:LOFilterWH_half(1)) = nan;
+    curLabel.cls(:, imgWH(1)-LOFilterWH_half(1):end, :) = nan;
+    
+    sampleMask_jb = zeros(imgWH(2), imgWH(1)); 
+    for cInd=0:nCls % include bg=0
+        [rows, cols] = find(curLabel.cls == cInd);
+        if isempty(rows)
+            continue;
+        end
+        
+        rndInd = randi(numel(rows), [nPerClsSample, 1]);
+        sampleMask_jb(rows(rndInd), cols(rndInd)) = sampleMask_jb(rows(rndInd), cols(rndInd)) + 1;
+    end
+        
+    xys = [];
+    while true     
+        [rows, cols] = find(sampleMask_jb>=1);
+        if isempty(rows)
+            break;
+        end
+        sampleMask_jb(sampleMask_jb>=1) = sampleMask_jb(sampleMask_jb>=1) - 1;
+        
+        xy = [cols'; rows']; % be careful the order
+        xys = [xys xy];    
+    end
+    ixy(:, startInd:startInd+size(xys, 2)-1) = [iInd*ones(1, size(xys, 2)); xys];
     
     % construct label
-    linInd = sub2ind(size(curLabel.cls), xy(2, :), xy(1, :));
-    curLabel = curLabel.cls(linInd);
-    label(startInd:startInd+size(xy, 2)-1) = curLabel;
+    linInd = sub2ind(size(curLabel.cls), xys(2, :), xys(1, :));
+    label(startInd:startInd+size(xys, 2)-1) = curLabel.cls(linInd);
     
     % update a pointer
-    startInd = startInd+size(xy, 2);
+    startInd = startInd+size(xys, 2);
+    
+    
+%     % build sampleMask
+%     sampleMask_jb = false(imgWH(2), imgWH(1));
+%     [rows, cols] = meshgrid(1:step:imgWH(2), 1:step:imgWH(1));
+%     sampleMask_jb(rows, cols) = true;
+%     % falsify boundaries
+%     sampleMask_jb(1:LOFilterWH_half(2), :) = false;
+%     sampleMask_jb(imgWH(2)-LOFilterWH_half(2):end, :) = false;
+%     sampleMask_jb(:, 1:LOFilterWH_half(1)) = false;
+%     sampleMask_jb(:, imgWH(1)-LOFilterWH_half(1):end, :) = false;
+%         
+%     % construct meta data
+%     [rows, cols] = find(sampleMask_jb);
+%     xy = [cols'; rows']; % be careful the order
+%     ixy(:, startInd:startInd+size(xy, 2)-1) = [iInd*ones(1, size(xy, 2)); xy];
+%     
+%     % construct label
+%     linInd = sub2ind(size(curLabel.cls), xy(2, :), xy(1, :));
+%     curLabel = curLabel.cls(linInd);
+%     label(startInd:startInd+size(xy, 2)-1) = curLabel;
+%     
+%     % update a pointer
+%     startInd = startInd+size(xy, 2);
 end
 ixy(:, startInd:end) = [];
 label(startInd:end) = [];

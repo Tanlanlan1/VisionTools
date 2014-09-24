@@ -1,8 +1,10 @@
 %% init
 addpath(genpath('../Feature')); %%FIXME
 addpath(genpath('../JointBoost')); %%FIXME
+close all;
 
 annotate = true;
+saveAnnotation = false;
 
 if annotate
     trainInd = 1;
@@ -11,20 +13,20 @@ else
     clsList = 83;
     trainInd = 1;
     testInd = 2;
+    nCls = numel(clsList)+1;
 end
 
 
 % TextonBoost params
 TBParams = struct(...
     'samplingRatio', 0.1, ...
-    'nTexton', 64, ...
-    'nPart', 16, ...
-    'LOFilterWH', [101; 101], ...
+    'nTexton', 128, ...
+    'nPart', 64, ...
+    'LOFilterWH', [51; 51], ...
     'verbosity', 1);
 
 % JointBoost params
 JBParams = struct(...
-    'nCls', numel(clsList)+1, ...
     'nWeakLearner', 500, ...
     'featDim', TBParams.nPart*TBParams.nTexton, ...
     'featSelRatio', 0.1, ...
@@ -35,22 +37,27 @@ if annotate
     % obtain annotations
     img1 = imread('ted1.jpg');
     img2 = imread('ted2.jpg');
-    rects = [];
-    figure(1); 
-    title('Enter for exit');
-    imshow(img1);
-    while true
-        figure(1); 
-        [x, y] = ginput(2);
-        if isempty(x) && isempty(y)
-            break;
+    if exist('ann.mat', 'file') && saveAnnotation
+        load('ann.mat');
+    else
+        rects = [];
+        figure(100); 
+        title('Enter for exit');
+        imshow(img1);
+        while true
+            figure(100); 
+            [x, y] = ginput(2);
+            if isempty(x) && isempty(y)
+                break;
+            end
+            rect = [min(x) min(y) max(x)-min(x)+1 max(y)-min(y)+1];
+            hold on;
+            rectangle('Position', rect, 'EdgeColor', 'r', 'LineWidth', 5);
+            hold off;
+            pause(0.1);
+            rects = [rects; rect];
         end
-        rect = [min(x) min(y) max(x)-min(x)+1 max(y)-min(y)+1];
-        hold on;
-        rectangle('Position', rect, 'EdgeColor', 'r', 'LineWidth', 5);
-        hold off;
-        pause(0.1);
-        rects = [rects; rect];
+        save('ann.mat', 'rects');
     end
     % construct data structure
     imgs = struct('img', {img1, img2});
@@ -64,6 +71,12 @@ if annotate
             size(img1, 1), size(img1, 2));
         labels(1).cls(mask) = rInd;
     end
+    JBParams.nCls = size(rects, 1);
+    if size(rects, 1) == 1
+        % make bg another class
+        labels(1).cls(labels(1).cls == 0) = 2;
+    end
+    JBParams.nCls = JBParams.nCls + 1; % count bg %%FIXME: bg should be label 0?
     
 else
     % load db
@@ -83,10 +96,11 @@ else
         end
         labels(lInd).depth = DBSt.depths(:, :, lInd);
     end
+    JBParams.nCls = nCls;
 end
 
 %% learn
-[mdls, params] = LearnSemSeg(imgs(trainInd), labels(trainInd), struct('pad', true, 'feat', TBParams, 'classifier', JBParams));
+[mdls, params] = LearnSemSeg(imgs(trainInd), labels(trainInd), struct('pad', true, 'feat', TBParams, 'nPerClsSample', 100,'classifier', JBParams));
 
 %% predict
 [cls, vals, params] = PredSemSeg(imgs(testInd), mdls, params);
