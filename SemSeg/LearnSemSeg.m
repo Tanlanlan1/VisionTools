@@ -14,6 +14,7 @@ function [ o_mdl, o_params ] = LearnSemSeg( i_imgs, i_labels, i_params )
 %           i_labels.depth          a depth
 % 
 %       i_params                    parameters
+%           i_params.pad            a boolean flag (true: pad images)
 %           i_params.clsList        a list of class IDs
 %           i_params.feat           feature extraction paramters
 %           i_params.classifier     classifier parameters
@@ -40,22 +41,38 @@ addpath(genpath('../JointBoost')); %%FIXME
 assert(isfield(i_imgs, 'img'));
 assert(numel(i_imgs) == 1);
 
+if ~isfield(i_params, 'pad')
+    i_params.pad = false;
+end
+
 nImgs = numel(i_imgs);
-%%FIXME: use same samplingRatio for texton and jointboost
-samplingRatio = i_params.feat.samplingRatio;
+samplingRatio = i_params.feat.samplingRatio; %%FIXME: mask? saplingratio? duplicated
+tbParams = i_params.feat;
 
 %% learn a classifier (JointBoost)
 
 % buid meta data for FeatCBFunc and labels
 LOFilterWH_half = (i_params.feat.LOFilterWH-1)/2; 
-imgWH = [size(i_imgs(1).img, 2); size(i_imgs(1).img, 1)];
-nData_approx = round(nImgs*imgWH(1)*imgWH(2)*samplingRatio); %%FIXME: assume same sized images
+nData_approx = round(nImgs*size(i_imgs(1).img, 2)*size(i_imgs(1).img, 1)*samplingRatio); %%FIXME: assume same sized images
 step = round(1/samplingRatio);
+
+% extract Texton
+[~, tbParams] = GetDenseFeature(i_imgs, {'Texton'}, tbParams); 
 
 ixy = zeros(3, nData_approx);
 label = zeros(nData_approx, 1);
 startInd = 1;
 for iInd=1:nImgs
+    % pad
+    if i_params.pad
+        curImg = struct('img', padarray(i_imgs(iInd).img, [LOFilterWH_half(2) LOFilterWH_half(1) 0], 'symmetric', 'both'));
+        curLabel = struct('cls', padarray(i_labels(iInd).cls, [LOFilterWH_half(2) LOFilterWH_half(1) 0], 'symmetric', 'both'));
+    else
+        curImg = struct('img', i_imgs(iInd).img);
+        curLabel = struct('cls', i_labels(iInd).cls);
+    end
+    imgWH = [size(curImg.img, 2); size(curImg.img, 1)];
+    
     % build sampleMask
     sampleMask = false(imgWH(2), imgWH(1));
     [rows, cols] = meshgrid(1:step:imgWH(2), 1:step:imgWH(1));
@@ -66,9 +83,9 @@ for iInd=1:nImgs
     sampleMask(:, 1:LOFilterWH_half(1)) = false;
     sampleMask(:, imgWH(1)-LOFilterWH_half(1):end, :) = false;
     
-    % extract feature (TextonBoost)
+    % extract feature (TextonBoost) 
     i_params.feat.sampleMask = sampleMask;
-    [feat, tbParams] = GetDenseFeature(i_imgs(iInd), {'TextonBoostInt'}, i_params.feat); 
+    [feat, tbParams] = GetDenseFeature(curImg, {'TextonBoostInt'}, tbParams); 
     
     % construct meta data
     [rows, cols] = find(sampleMask);
@@ -76,8 +93,8 @@ for iInd=1:nImgs
     ixy(:, startInd:startInd+size(xy, 2)-1) = [iInd*ones(1, size(xy, 2)); xy];
     
     % construct label
-    linInd = sub2ind(size(i_labels(iInd).cls), xy(2, :), xy(1, :));
-    curLabel = i_labels(iInd).cls(linInd);
+    linInd = sub2ind(size(curLabel.cls), xy(2, :), xy(1, :));
+    curLabel = curLabel.cls(linInd);
     label(startInd:startInd+size(xy, 2)-1) = curLabel;
     
     % update a pointer

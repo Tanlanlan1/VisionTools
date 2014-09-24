@@ -7,10 +7,10 @@ function [ o_feat, o_params ] = GetDenseFeature( i_imgs, i_cues, i_params )
 % 
 %       i_imgs          a struct array of images
 %       i_cues:         a string array where each elements stands for cues, e.g. Lab, texture
-%           'color_RGB'         extract RGB colors
-%           'color_Lab'         extract Lab colors
-%           'texture_LM'        extract texture based on the the Leung-Malik filter bank
-%           'texton'            extract textons based on the texture_LM
+%           'Color_RGB'         extract RGB colors
+%           'Color_Lab'         extract Lab colors
+%           'Texture_LM'        extract texture based on the the Leung-Malik filter bank
+%           'Texton'            extract textons based on the texture_LM
 %           'TextonBoost'       extract textonBoost
 %           'TextonBoostInt'
 % 
@@ -55,6 +55,9 @@ if ~isfield(i_params, 'verbosity')
     i_params.verbosity = 0;
 end
 
+%%FIXME: samplingRatio, samplingMask...duplicated concepts
+
+
 %% extract features
 for iInd=1:numel(i_imgs)
     i_imgs(iInd).img = im2double(i_imgs(iInd).img);
@@ -66,23 +69,23 @@ imgs = i_imgs;
 assert(numel(i_cues) == 1);
 for cInd=1:numel(i_cues)
     switch i_cues{cInd}
-        case 'color_RGB'
+        case 'Color_RGB'
             assert(size(imgs(1).img, 3) == 3);
             o_feat = GetRGBDenseFeature(imgs);
             
-        case 'color_Lab'
+        case 'Color_Lab'
             assert(size(imgs, 3) == 3);    
             assert(~iscell(imgs));
             o_feat = GetLabDenseFeature(imgs);
             
-        case 'texture_LM'
+        case 'Texture_LM'
             assert(~iscell(imgs));
             o_feat = GetTextureLMFeature(imgs);
              
-        case 'texture_MR4'
+        case 'Texture_MR4'
 %             img = rgb2gray(img);
             
-        case 'texton'
+        case 'Texton'
 %             [o_feat{cInd}, o_params] = GetTextonFeature(imgs, i_params);
             [o_feat, o_params] = GetTextonFeature(imgs, i_params);
             
@@ -197,7 +200,7 @@ if ~isfield(i_params, 'textons') || isempty(i_params.textons)
     for iInd=1:nImgs
         curTexture = textures{iInd};
         data_is = reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])';
-        step = size(data_is, 2)/round(samplingRatio*size(data_is, 2));
+        step = round(1/samplingRatio);
         data{iInd} = data_is(:, 1:step:end);
     end
     data = cell2mat(data);
@@ -347,8 +350,11 @@ if ~isfield(params, 'parts')
     params.parts = GenTextonBoostParts(params);
 end
 
-%% obtain integral images
+%% obtain Texton features
 [textonFeats, params] = GetTextonFeature(i_imgs, params);
+
+%% obtain integral images
+
 % feat = cell(nImg, 1);
 feats = struct('feat', []);
 feats(nImg) = feats;
