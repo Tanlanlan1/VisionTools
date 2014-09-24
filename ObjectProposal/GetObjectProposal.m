@@ -170,7 +170,8 @@ for bInd1=1:numel(blobs)
         bb2 = blobs(bInd2).rect_matlab;
         
         % simply check overlap between bounding boxes
-        intArea = rectint(bb1, bb2);
+%         intArea = rectint(bb1, bb2);
+        intArea = myrectint(bb1, bb2);
         uniArea = bb1(3)*bb1(4) + bb2(3)*bb2(4) - intArea;
         ov = intArea/uniArea;
         % suppress
@@ -184,6 +185,24 @@ end
 o_blobs = blobs(valid);
 [~, I] = sort([o_blobs(:).convexity], 'descend');
 o_blobs = o_blobs(I);
+end
+
+function [out] = myrectint(A, B)
+% modified matlab code for efficiency
+assert(size(A, 1) == 1 && size(B, 1) == 1);
+
+leftA = A(:,1);
+bottomA = A(:,2);
+rightA = leftA + A(:,3);
+topA = bottomA + A(:,4);
+
+leftB = B(:,1)';
+bottomB = B(:,2)';
+rightB = leftB + B(:,3)';
+topB = bottomB + B(:,4)';
+
+out = (max(0, min(rightA, rightB) - max(leftA, leftB))) .* ...
+    (max(0, min(topA, topB) - max(bottomA, bottomB)));
 end
 
 
