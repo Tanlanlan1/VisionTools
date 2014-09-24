@@ -67,9 +67,11 @@ end
 
 if iscell(i_imgs)
     nImg = numel(i_imgs);
+    cellFlag = true;
 else
     i_imgs = {i_imgs};
     nImg = 1;
+    cellFlag = false;
 end
 %% set params
 
@@ -147,6 +149,9 @@ for iInd=1:nImg
     
 end
 
+if ~cellFlag
+    o_prop = cell2mat(o_prop);
+end
 end
 
 function [o_blobs] = suppressBlobs(i_blobs, i_overlap)
