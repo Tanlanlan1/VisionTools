@@ -33,7 +33,7 @@ function [ o_feat, o_params ] = GetDenseFeature( i_imgs, i_cues, i_params )
 % ----------
 %   DEPENDENCY:
 %   
-%
+%cmp
 % ----------
 % Written by Sangdon Park (sangdonp@cis.upenn.edu), 2014.
 % All rights reserved.
@@ -46,7 +46,9 @@ addpath([thisFilePath '/TextonBoost']);
 vlfeatmexpath = [thisFilePath '/../vlfeat/toolbox/mex'];
 vlfeatmexapthall = genpath(vlfeatmexpath);
 addpath(vlfeatmexapthall);
-setenv('LD_LIBRARY_PATH', [vlfeatmexapthall ':' getenv('LD_LIBRARY_PATH')]);
+if ~strfind(getenv('LD_LIBRARY_PATH'), vlfeatmexapthall)
+    setenv('LD_LIBRARY_PATH', [vlfeatmexapthall ':' getenv('LD_LIBRARY_PATH')]);
+end
 
 if nargin < 3
     i_params = struct('verbosity', 0);

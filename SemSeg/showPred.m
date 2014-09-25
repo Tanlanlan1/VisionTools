@@ -1,4 +1,4 @@
-function showPred( cls, vals, params, trImg, trLabels, teImg, outFFmt )
+function [o_hFig] = showPred( cls, vals, params, trImg, trLabels, teImg, outFFmt )
 %SHOWPRED Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -51,5 +51,7 @@ title('Predicted regions');
 if ~isempty(outFFmt)
     saveas(hFig, outFFmt, 'png');
 end
+
+o_hFig = hFig;
 end
 
