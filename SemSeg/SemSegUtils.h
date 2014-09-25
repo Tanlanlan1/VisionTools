@@ -11,10 +11,18 @@
 #include <iostream>
 #include <assert.h>
 #include <omp.h>
+#include <algorithm>
 
 #define NTHREAD 32
 
 using namespace std;
+
+void GetRandPerm(int i_start, int i_end, vector<int>& o_list){
+    for(int i=i_start; i<=i_end; ++i){
+        o_list.push_back(i);
+    }
+    random_shuffle(o_list.begin(), o_list.end());
+}
 
 class Mat{ //FIXME: assume double type and two dimensions
 private:
@@ -83,6 +91,7 @@ void UpdWs(Mat &io_ws, Mat &i_zs, Mat &i_hs){
     // ws = ws.*exp(-zs.*hs);
     int nRows = io_ws.Size(1);
     int nCols = io_ws.Size(2);
+    #pragma omp parallel for
     for(int r=0; r<nRows; ++r)
         for(int c=0; c<nCols; ++c)
             io_ws.GetRef(r, c) = // ws
@@ -196,10 +205,13 @@ void ConvMXIntImgFeat2CIntImgFeat(const mxArray* i_intImgFeat, vector<struct Int
         int nRows = dims[0];
         int nCols = dims[1];
         int nDeps = dims[2];
+        intImgFeat.feat.resize(nRows*nCols*nDeps);
         for(int k=0; k<nDeps; ++k)
             for(int j=0; j<nCols; ++j)
-                for(int i=0; i<nRows; ++i)
-                    intImgFeat.feat.push_back(*GetDblPnt(curIntImg, i, j, k));
+                for(int i=0; i<nRows; ++i){
+                    intImgFeat.feat[i + j*nRows + k*nRows*nCols] = (*GetDblPnt(curIntImg, i, j, k));
+//                     intImgFeat.feat.push_back(*GetDblPnt(curIntImg, i, j, k));
+                }
         intImgFeat.nRows = nRows;
         intImgFeat.nCols = nCols;
         intImgFeat.nDeps = nDeps;
@@ -222,9 +234,13 @@ void ConvMXMeta2CXMeta(const mxArray* i_x_meta, struct XMeta &o_x_meta){
     ConvMTBParams2CTBParams(mxGetField(i_x_meta, 0, "TBParams"), o_x_meta.TBParams);
     // ixy
     mxArray* ixys = mxGetField(i_x_meta, 0, "ixy");
-    for(int j=0; j<mxGetN(ixys); ++j){
-        for(int i=0; i<mxGetM(ixys); ++i){
-            o_x_meta.ixys.push_back(*GetIntPnt(ixys, i, j));
+    int M = mxGetM(ixys);
+    int N = mxGetN(ixys);
+    o_x_meta.ixys.resize(N*M);
+    for(int j=0; j<N; ++j){
+        for(int i=0; i<M; ++i){
+            o_x_meta.ixys[i+j*M] = (*GetIntPnt(ixys, i, j));
+//             o_x_meta.ixys.push_back(*GetIntPnt(ixys, i, j));
         }
     }
 }

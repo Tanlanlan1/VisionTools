@@ -5,8 +5,10 @@ close all;
 
 annotate = true;
 saveAnnotation = true;
-
+verbosity = 1;
 nPerClsSample = 500;
+resizeRatio = 1;
+
 
 if annotate
     trainInd = 1;
@@ -22,23 +24,23 @@ end
 % TextonBoost params
 TBParams = struct(...
     'samplingRatio', 0.1, ...
-    'nTexton', 128, ...
+    'nTexton', 64, ...
     'nPart', 64, ...
     'LOFilterWH', [101; 101], ...
-    'verbosity', 1);
+    'verbosity', verbosity);
 
 % JointBoost params
 JBParams = struct(...
-    'nWeakLearner', 500, ...
+    'nWeakLearner', 200, ... 
     'featDim', TBParams.nPart*TBParams.nTexton, ...
     'featSelRatio', 0.1, ...
     'featValRange', 0:0.1:1, ...
-    'verbosity', 1);
+    'verbosity', verbosity);
 
 if annotate
     % obtain annotations
-    img1 = imread('ted1.jpg');
-    img2 = imread('ted2.jpg');
+    img1 = imresize(imread('ted1.jpg'), resizeRatio);
+    img2 = imresize(imread('ted2.jpg'), resizeRatio);
     if exist('ann.mat', 'file') && saveAnnotation
         load('ann.mat');
     else
@@ -96,7 +98,7 @@ else
 end
 
 %% learn
-[mdls, params] = LearnSemSeg(imgs(trainInd), labels(trainInd), struct('pad', true, 'feat', TBParams, 'nPerClsSample', nPerClsSample,'classifier', JBParams));
+[mdls, params] = LearnSemSeg(imgs(trainInd), labels(trainInd), struct('pad', true, 'feat', TBParams, 'nPerClsSample', nPerClsSample,'classifier', JBParams, 'verbosity', 1));
 
 %% predict
 [cls, vals, params] = PredSemSeg(imgs(testInd), mdls, params);

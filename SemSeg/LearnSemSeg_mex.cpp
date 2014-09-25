@@ -45,11 +45,16 @@ void FitStumpForAllS(
             }            
             
             // fit a stump. Find a weak learner given an S
+            vector<int> randFeatInd;
+            GetRandPerm(0, featDim-1, randFeatInd);
+            randFeatInd.resize(round(featDim*featSelRatio));
             double Jwse_S_best = mxGetInf();
             #pragma omp parallel for
-            for(int fInd=0; fInd<featDim; ++fInd){
-                if(((double)(rand()%1000))/1000 > featSelRatio)
-                    continue;
+            for(int fIndInd=0; fIndInd<randFeatInd.size(); ++fIndInd){
+                int fInd = randFeatInd[fIndInd];
+//             for(int fInd=0; fInd<featDim; ++fInd){
+//                 if(((double)(rand()%1000))/1000 > featSelRatio)
+//                     continue;
                 
                 // precalc xs
                 vector<double> xs_tmp(nData);

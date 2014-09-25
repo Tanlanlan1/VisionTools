@@ -47,7 +47,9 @@ end
 if ~isfield(i_params, 'nPerClsSample')
     i_params.nPerClsSample = 100;
 end
-
+if ~isfield(i_params, 'verbosity')
+    i_params.verbosity = 0;
+end
 
 nImgs = numel(i_imgs);
 % samplingRatio = i_params.feat.samplingRatio; %%FIXME: mask? saplingratio? duplicated
@@ -103,7 +105,11 @@ for iInd=1:nImgs
             sampleMask_jb(linInd(tmp)) = sampleMask_jb(linInd(tmp)) + 1;
         end
     end
-        
+    if i_params.verbosity >= 2
+        figure(2000); 
+        imagesc(sampleMask_jb);
+    end
+    
     xys = [];
     while true     
         [rows, cols] = find(sampleMask_jb>=1);
