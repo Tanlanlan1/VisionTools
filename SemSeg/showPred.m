@@ -1,20 +1,26 @@
-function showPred( cls, vals, params, trImg, trLabels, teImg )
+function showPred( cls, vals, params, trImg, trLabels, teImg, outFFmt )
 %SHOWPRED Summary of this function goes here
 %   Detailed explanation goes here
 
 %% init
+
+if nargin == 6
+    outFFmt = [];
+end
+
 nCls = size(vals, 2) - 1;
 
 sampleMask = params.feat.sampleMask;
 % [rows, cols] = find(sampleMask);
-lineCols = colormap('lines');
 % cls = reshape(cls, [numel(unique(rows)) numel(unique(cols))]);
 cls_ori = zeros(size(sampleMask));
 cls_ori(sampleMask) = cls;
 
+hFig = 3000;
 %% show
-figure(3000); clf;
-subplot(1, 2, 1);
+figure(hFig); clf;
+lineCols = colormap(lines);
+subplot_tight(1, 2, 1);
 imshow(trImg);
 hold on;
 layerImg = zeros(size(trImg));
@@ -28,7 +34,7 @@ set(h, 'AlphaData', 0.7);
 hold off;
 title('training regions');
 
-subplot(1, 2, 2);
+subplot_tight(1, 2, 2);
 imshow(teImg);
 hold on;
 layerImg = zeros(size(teImg));
@@ -42,6 +48,8 @@ set(h, 'AlphaData', 0.7);
 hold off;
 title('Predicted regions');
 
-
+if ~isempty(outFFmt)
+    saveas(hFig, outFFmt, 'png');
+end
 end
 

@@ -34,9 +34,9 @@ function [ o_mdl, o_params ] = LearnSemSeg( i_imgs, i_labels, i_params )
 %
 
 %% init
-
-addpath(genpath('../Feature')); %%FIXME
-addpath(genpath('../JointBoost')); %%FIXME
+thisFilePath = fileparts(mfilename('fullpath'));
+addpath(genpath([thisFilePath '/../Feature'])); %%FIXME
+addpath(genpath([thisFilePath '/../JointBoost'])); %%FIXME
 
 assert(isfield(i_imgs, 'img'));
 assert(numel(i_imgs) == 1);
