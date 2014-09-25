@@ -64,6 +64,9 @@ end
 if ~isfield(i_params, 'nmsOverlap')
     i_params.nmsOverlap = 0.5;
 end
+if ~isfield(i_params, 'bounaryRatio')
+    i_params.bounaryRatio = 0.2;
+end
 
 if iscell(i_imgs)
     nImg = numel(i_imgs);
@@ -134,6 +137,23 @@ for iInd=1:nImg
         blobs(bInd).rect_matlab = [blobs(bInd).rect(2) blobs(bInd).rect(1) blobs(bInd).rect(4)-blobs(bInd).rect(2) blobs(bInd).rect(3)-blobs(bInd).rect(1)];
         blobs(bInd).convexity = sum(blobs(bInd).mask(:))/(blobs(bInd).rect_matlab(3)*blobs(bInd).rect_matlab(4));
     end
+    
+    % post-process to remove blobs at the boundary
+    xbndlen = round(i_params.bounaryRatio*size(im, 2));
+    ybndlen = round(i_params.bounaryRatio*size(im, 1));
+    xmin = round(xbndlen/2);
+    xmax = size(im, 2)-round(xbndlen/2);
+    ymin = round(ybndlen/2);
+    ymax = size(im, 1)-round(ybndlen/2);
+    valid = true(numel(blobs), 1);
+    for bInd=1:numel(blobs)
+        cx = blobs(bInd).rect_matlab(1) + round(blobs(bInd).rect_matlab(3)/2);
+        cy = blobs(bInd).rect_matlab(2) + round(blobs(bInd).rect_matlab(4)/2);
+        if cx < xmin || cx > xmax || cy < ymin || cy > ymax
+            valid(bInd) = false;
+        end
+    end
+    blobs = blobs(valid);
     
     % suppress duplicated blobs
     prop = suppressBlobs(blobs, i_params.nmsOverlap);

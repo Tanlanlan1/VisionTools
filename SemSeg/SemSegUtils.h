@@ -200,7 +200,7 @@ void ConvMXIntImgFeat2CIntImgFeat(const mxArray* i_intImgFeat, vector<struct Int
     int nImgs = mxGetNumberOfElements(i_intImgFeat);
     for(int iInd=0; iInd<nImgs; ++iInd){
         struct IntImgFeat intImgFeat;
-        mxArray *curIntImg = mxGetField(i_intImgFeat, iInd, "feat");
+        mxArray *curIntImg = mxGetField(i_intImgFeat, iInd, "TextonIntImg");
         const mwSize *dims = mxGetDimensions(curIntImg);
         int nRows = dims[0];
         int nCols = dims[1];

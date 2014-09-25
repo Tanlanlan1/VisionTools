@@ -186,9 +186,11 @@ nImgs = numel(i_imgs);
 if verbosity >= 1
     disp('* obtain texture information');
 end
-textures = cell(nImgs, 1);
+% textures = cell(nImgs, 1);
 for iInd=1:nImgs
-    [textures{iInd}, fb] = GetTextureLMFeature(i_imgs(iInd).img);
+    if ~isfield(i_imgs(iInd), 'Texture')
+        [i_imgs(iInd).Texture, fb] = GetTextureLMFeature(i_imgs(iInd).img);
+    end
 end
 
 %% extract textons if not exist
@@ -198,7 +200,7 @@ if ~isfield(i_params, 'textons') || isempty(i_params.textons)
     end
     data = cell(1, nImgs);
     for iInd=1:nImgs
-        curTexture = textures{iInd};
+        curTexture = i_imgs(iInd).Texture;
         data_is = reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])';
         step = round(1/samplingRatio);
         data{iInd} = data_is(:, 1:step:end);
@@ -215,11 +217,12 @@ else
 end
 
 %% obtain texton features
-feats = struct('feat', []);
-feats(nImgs) = feats;
+% feats = struct('feat', []);
+% feats(nImgs) = feats;
+
 for iInd=1:nImgs
-    curTexture = textures{iInd};
-    curTexture_q = reshape(textures{iInd}, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])';
+    curTexture = i_imgs(iInd).Texture;
+    curTexture_q = reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])';
     
     [IND, DIST] = vl_kdtreequery(kdtree, textons, curTexture_q, 'numNeighbors', nNN);
     textonImg = zeros(size(curTexture, 1), size(curTexture, 2), nTexton);
@@ -228,7 +231,7 @@ for iInd=1:nImgs
         linInd = sub2ind(size(textonImg), rows(:), cols(:), double(IND(nnInd, :))');
         textonImg(linInd) = exp(-DIST(nnInd, :));
     end
-    feats(iInd).feat = textonImg;
+    i_imgs(iInd).Texton = textonImg;
 end
 
 %% visualize
@@ -259,7 +262,7 @@ end
 % if ~cellFlag
 %     feat = cell2mat(feat);
 % end
-o_feats = feats;
+o_feats = i_imgs;
 o_params = i_params;
 o_params.textons = textons;
 o_params.kdtree = kdtree;
@@ -351,20 +354,24 @@ if ~isfield(params, 'parts')
 end
 
 %% obtain Texton features
-[textonFeats, params] = GetTextonFeature(i_imgs, params);
+textonFeats = i_imgs;
+if ~isfield(textonFeats, 'Texton')
+    [textonFeats, params] = GetTextonFeature(i_imgs, params);
+end
 
 %% obtain integral images
 
 % feat = cell(nImg, 1);
-feats = struct('feat', []);
-feats(nImg) = feats;
+% feats = struct('feat', []);
+% feats(nImg) = feats;
+feats = textonFeats;
 for iInd=1:nImg
-    curFeat = textonFeats(iInd).feat;
+    curFeat = textonFeats(iInd).Texton;
     textIntImg = zeros(size(curFeat, 1)+1, size(curFeat, 2)+1, nTexton, 'single');
     for tInd=1:nTexton
         textIntImg(:, :, tInd) = integralImage(curFeat(:, :, tInd));
     end
-    feats(iInd).feat = textIntImg;
+    feats(iInd).TextonIntImg = textIntImg;
 end
 
 %% return

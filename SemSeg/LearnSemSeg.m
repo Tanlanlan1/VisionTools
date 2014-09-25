@@ -65,26 +65,38 @@ LOFilterWH_half = (i_params.feat.LOFilterWH-1)/2;
 nData_approx = round(nImgs*size(i_imgs(1).img, 2)*size(i_imgs(1).img, 1)); %%FIXME: assume same sized images
 % step = round(1/samplingRatio);
 
+% pad
+if i_params.pad
+    for iInd=1:nImgs
+        i_imgs(iInd).img = padarray(i_imgs(iInd).img, [LOFilterWH_half(2) LOFilterWH_half(1) 0], 'symmetric', 'both');
+        i_labels(iInd).cls = padarray(i_labels(iInd).cls, [LOFilterWH_half(2) LOFilterWH_half(1) 0], 'symmetric', 'both');
+    end
+end
+
 % extract Texton
-[~, tbParams] = GetDenseFeature(i_imgs, {'Texton'}, tbParams); %%FIXME: sampling points are different with JointBoost
+[feats_texton, tbParams] = GetDenseFeature(i_imgs, {'Texton'}, tbParams); %%FIXME: sampling points are different with JointBoost
 
 ixy = zeros(3, nData_approx);
 label = zeros(nData_approx, 1);
 startInd = 1;
+feats_textInt = [];
 for iInd=1:nImgs
-    % pad
-    if i_params.pad
-        curImg = struct('img', padarray(i_imgs(iInd).img, [LOFilterWH_half(2) LOFilterWH_half(1) 0], 'symmetric', 'both'));
-        curLabel = struct('cls', padarray(i_labels(iInd).cls, [LOFilterWH_half(2) LOFilterWH_half(1) 0], 'symmetric', 'both'));
-    else
-        curImg = struct('img', i_imgs(iInd).img);
-        curLabel = struct('cls', i_labels(iInd).cls);
-    end
+%     % pad
+%     if i_params.pad
+%         
+%         curImg = struct('img', padarray(i_imgs(iInd).img, [LOFilterWH_half(2) LOFilterWH_half(1) 0], 'symmetric', 'both'));
+%         curLabel = struct('cls', padarray(i_labels(iInd).cls, [LOFilterWH_half(2) LOFilterWH_half(1) 0], 'symmetric', 'both'));
+%     else
+%         curImg = struct('img', i_imgs(iInd).img);
+%         curLabel = struct('cls', i_labels(iInd).cls);
+%     end
+    curImg = feats_texton(iInd);
+    curLabel = i_labels(iInd);
     imgWH = [size(curImg.img, 2); size(curImg.img, 1)];
     
     % extract feature (TextonBoost) 
-    [feat, tbParams] = GetDenseFeature(curImg, {'TextonBoostInt'}, tbParams); 
-    
+    [curOut, tbParams] = GetDenseFeature(curImg, {'TextonBoostInt'}, tbParams); 
+    feats_textInt = [feats_textInt; curOut];
     % build sampleMask %%FIXME: should be balanced across images also...
     % falsify boundaries
     curLabel.cls(1:LOFilterWH_half(2), :) = nan;
@@ -158,7 +170,7 @@ for iInd=1:nImgs
 end
 ixy(:, startInd:end) = [];
 label(startInd:end) = [];
-x_meta = struct('ixy', ixy, 'intImgFeat', feat, 'TBParams', tbParams);
+x_meta = struct('ixy', ixy, 'intImgFeat', feats_textInt, 'TBParams', tbParams);
 
 % run
 JBParams = i_params.classifier;
@@ -188,7 +200,7 @@ x_meta_mex = x_meta;
 x_meta_mex.ixy = int32(x_meta_mex.ixy);
 % x_meta.intImgfeat
 for iInd=1:numel(x_meta_mex.intImgFeat)
-    x_meta_mex.intImgFeat(iInd).feat = double(x_meta_mex.intImgFeat(iInd).feat);
+    x_meta_mex.intImgFeat(iInd).TextonIntImg = double(x_meta_mex.intImgFeat(iInd).TextonIntImg);
 end
 % x_meta.tbParams
 x_meta_mex.TBParams.LOFilterWH = int32(x_meta_mex.TBParams.LOFilterWH);
