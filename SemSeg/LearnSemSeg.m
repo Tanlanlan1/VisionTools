@@ -96,7 +96,7 @@ for iInd=1:nImgs
     
     % extract feature (TextonBoost) 
     [curOut, tbParams] = GetDenseFeature(curImg, {'TextonBoostInt'}, tbParams); 
-    feats_textInt = [feats_textInt; curOut];
+    feats_textInt = [feats_textInt; curOut]; %%FIXME: ugly. do that outside of the loop
     % build sampleMask %%FIXME: should be balanced across images also...
     % falsify boundaries
     curLabel.cls(1:LOFilterWH_half(2), :) = nan;

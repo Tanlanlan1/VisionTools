@@ -91,7 +91,7 @@ x_meta_mex = x_meta;
 x_meta_mex.ixy = int32(x_meta_mex.ixy);
 % x_meta.intImgfeat
 for iInd=1:numel(x_meta_mex.intImgFeat)
-    x_meta_mex.intImgFeat(iInd).feat = double(x_meta_mex.intImgFeat(iInd).feat);
+    x_meta_mex.intImgFeat(iInd).TextonIntImg = double(x_meta_mex.intImgFeat(iInd).TextonIntImg);
 end
 % x_meta.tbParams
 x_meta_mex.TBParams.LOFilterWH = int32(x_meta_mex.TBParams.LOFilterWH);
