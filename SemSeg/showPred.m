@@ -8,13 +8,13 @@ if nargin == 6
     outFFmt = [];
 end
 
-nCls = size(vals, 2) - 1;
+nCls = params.classifier.nCls - 1; % rm bg
 
-sampleMask = params.feat.sampleMask;
-% [rows, cols] = find(sampleMask);
-% cls = reshape(cls, [numel(unique(rows)) numel(unique(cols))]);
-cls_ori = zeros(size(sampleMask));
-cls_ori(sampleMask) = cls;
+% nCls = size(vals, 2) - 1;
+% sampleMask = params.feat.sampleMask;
+% cls_ori = zeros(size(sampleMask));
+% cls_ori(sampleMask) = cls;
+cls_ori = cls;
 
 hFig = 3000;
 %% show

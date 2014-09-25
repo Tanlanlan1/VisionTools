@@ -79,11 +79,24 @@ dist = PredSemSeg_mex(x_meta_mex, i_mdls, JBParams_mex);
 fprintf('* Running time PredSemSeg_mex: %s sec.\n', num2str(toc(mexTID)));
 
 %% return
-[~, o_cls] = max(dist, [], 2);
-o_dist = dist;
 o_params = struct('feat', tbParams, 'classifier', JBParams);
-end
 
+[~, cls] = max(dist, [], 2);
+% o_dist = dist;
+
+assert(nImgs == 1);
+sampleMask = o_params.feat.sampleMask;
+
+o_cls = zeros(size(sampleMask));
+o_cls(sampleMask) = cls;
+
+o_dist = repmat(zeros(size(sampleMask)), [1 1 size(dist, 2)]);
+for cInd=1:size(dist, 2)
+    dist_tmp = zeros(size(sampleMask));
+    dist_tmp(sampleMask) = dist(:, cInd);
+    o_dist(:, :, cInd) = dist_tmp;
+end
+end
 
 function [x_meta_mex, JBParams_mex] = convType(x_meta, JBParams)
 x_meta_mex = x_meta;
