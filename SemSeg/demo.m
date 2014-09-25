@@ -4,7 +4,9 @@ addpath(genpath('../JointBoost')); %%FIXME
 close all;
 
 annotate = true;
-saveAnnotation = false;
+saveAnnotation = true;
+
+nPerClsSample = 500;
 
 if annotate
     trainInd = 1;
@@ -22,7 +24,7 @@ TBParams = struct(...
     'samplingRatio', 0.1, ...
     'nTexton', 128, ...
     'nPart', 64, ...
-    'LOFilterWH', [51; 51], ...
+    'LOFilterWH', [101; 101], ...
     'verbosity', 1);
 
 % JointBoost params
@@ -63,7 +65,6 @@ if annotate
     imgs = struct('img', {img1, img2});
     labels = struct('cls', {zeros(size(img1, 1), size(img1, 2)), []});
     for rInd=1:size(rects, 1)
-        
         rect = rects(rInd, :);
         mask = poly2mask(...
             [rect(1) rect(1) rect(1)+rect(3)-1 rect(1)+rect(3)-1], ...
@@ -71,13 +72,8 @@ if annotate
             size(img1, 1), size(img1, 2));
         labels(1).cls(mask) = rInd;
     end
-    JBParams.nCls = size(rects, 1);
-    if size(rects, 1) == 1
-        % make bg another class
-        labels(1).cls(labels(1).cls == 0) = 2;
-    end
-    JBParams.nCls = JBParams.nCls + 1; % count bg %%FIXME: bg should be label 0?
-    
+    JBParams.nCls = size(rects, 1) + 1; % count bg %%FIXME: bg should be label 0?
+    labels(1).cls(labels(1).cls == 0) = JBParams.nCls;
 else
     % load db
     DBSt = load('DB/nyu_depth_v2_sample.mat');
@@ -100,7 +96,7 @@ else
 end
 
 %% learn
-[mdls, params] = LearnSemSeg(imgs(trainInd), labels(trainInd), struct('pad', true, 'feat', TBParams, 'nPerClsSample', 100,'classifier', JBParams));
+[mdls, params] = LearnSemSeg(imgs(trainInd), labels(trainInd), struct('pad', true, 'feat', TBParams, 'nPerClsSample', nPerClsSample,'classifier', JBParams));
 
 %% predict
 [cls, vals, params] = PredSemSeg(imgs(testInd), mdls, params);

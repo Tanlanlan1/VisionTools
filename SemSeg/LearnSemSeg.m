@@ -50,7 +50,7 @@ end
 
 
 nImgs = numel(i_imgs);
-samplingRatio = i_params.feat.samplingRatio; %%FIXME: mask? saplingratio? duplicated
+% samplingRatio = i_params.feat.samplingRatio; %%FIXME: mask? saplingratio? duplicated
 nPerClsSample = i_params.nPerClsSample;
 tbParams = i_params.feat;
 nCls = i_params.classifier.nCls;
@@ -98,7 +98,10 @@ for iInd=1:nImgs
         end
         
         rndInd = randi(numel(rows), [nPerClsSample, 1]);
-        sampleMask_jb(rows(rndInd), cols(rndInd)) = sampleMask_jb(rows(rndInd), cols(rndInd)) + 1;
+        linInd = sub2ind(size(sampleMask_jb), rows(rndInd), cols(rndInd));
+        for tmp=1:numel(linInd) % should be updated sequencially
+            sampleMask_jb(linInd(tmp)) = sampleMask_jb(linInd(tmp)) + 1;
+        end
     end
         
     xys = [];
@@ -112,11 +115,13 @@ for iInd=1:nImgs
         xy = [cols'; rows']; % be careful the order
         xys = [xys xy];    
     end
-    ixy(:, startInd:startInd+size(xys, 2)-1) = [iInd*ones(1, size(xys, 2)); xys];
     
     % construct label
     linInd = sub2ind(size(curLabel.cls), xys(2, :), xys(1, :));
     label(startInd:startInd+size(xys, 2)-1) = curLabel.cls(linInd);
+    
+    % update ixy
+    ixy(:, startInd:startInd+size(xys, 2)-1) = [iInd*ones(1, size(xys, 2)); xys];
     
     % update a pointer
     startInd = startInd+size(xys, 2);
