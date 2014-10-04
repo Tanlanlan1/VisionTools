@@ -222,18 +222,20 @@ end
 % feats = struct('feat', []);
 % feats(nImgs) = feats;
 
-for iInd=1:nImgs
-    curTexture = i_imgs(iInd).Texture;
-    curTexture_q = reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])';
-    
-    [IND, DIST] = vl_kdtreequery(kdtree, textons, curTexture_q, 'numNeighbors', nNN);
-    textonImg = zeros(size(curTexture, 1), size(curTexture, 2), nTexton);
-    for nnInd=1:nNN
-        [cols, rows] = meshgrid(1:size(textonImg, 2), 1:size(textonImg, 1));
-        linInd = sub2ind(size(textonImg), rows(:), cols(:), double(IND(nnInd, :))');
-        textonImg(linInd) = exp(-DIST(nnInd, :));
+if ~isfield(i_imgs, 'Texton')
+    for iInd=1:nImgs
+        curTexture = i_imgs(iInd).Texture;
+        curTexture_q = reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])';
+
+        [IND, DIST] = vl_kdtreequery(kdtree, textons, curTexture_q, 'numNeighbors', nNN);
+        textonImg = zeros(size(curTexture, 1), size(curTexture, 2), nTexton);
+        for nnInd=1:nNN
+            [cols, rows] = meshgrid(1:size(textonImg, 2), 1:size(textonImg, 1));
+            linInd = sub2ind(size(textonImg), rows(:), cols(:), double(IND(nnInd, :))');
+            textonImg(linInd) = exp(-DIST(nnInd, :));
+        end
+        i_imgs(iInd).Texton = textonImg;
     end
-    i_imgs(iInd).Texton = textonImg;
 end
 
 %% visualize
@@ -367,13 +369,15 @@ end
 % feats = struct('feat', []);
 % feats(nImg) = feats;
 feats = textonFeats;
-for iInd=1:nImg
-    curFeat = textonFeats(iInd).Texton;
-    textIntImg = zeros(size(curFeat, 1)+1, size(curFeat, 2)+1, nTexton, 'single');
-    for tInd=1:nTexton
-        textIntImg(:, :, tInd) = integralImage(curFeat(:, :, tInd));
+if ~isfield(feats, 'TextonIntImg')
+    for iInd=1:nImg
+        curFeat = textonFeats(iInd).Texton;
+        textIntImg = zeros(size(curFeat, 1)+1, size(curFeat, 2)+1, nTexton, 'single');
+        for tInd=1:nTexton
+            textIntImg(:, :, tInd) = integralImage(curFeat(:, :, tInd));
+        end
+        feats(iInd).TextonIntImg = textIntImg;
     end
-    feats(iInd).TextonIntImg = textIntImg;
 end
 
 %% return

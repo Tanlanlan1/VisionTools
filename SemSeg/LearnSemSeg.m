@@ -1,4 +1,4 @@
-function [ o_mdl, o_params ] = LearnSemSeg( i_imgs, i_labels, i_params )
+function [ o_mdl, o_params, o_feats ] = LearnSemSeg( i_imgs, i_labels, i_params )
 % 
 %   Learn a semantic segmentation model
 %   
@@ -191,7 +191,7 @@ end
 %% return
 o_mdl = mdls; 
 o_params = struct('feat', tbParams, 'classifier', JBParams);
-
+o_feats = feats_textInt;
 end
 
 function [x_meta_mex, label_mex, JBParams_mex] = convType(x_meta, label, JBParams)
