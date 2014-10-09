@@ -1,4 +1,4 @@
-function [ o_cls, o_dist, o_params ] = PredSemSeg( i_imgs, i_mdls, i_params )
+function [ o_cls, o_dist, o_params, o_feats ] = PredSemSeg( i_imgs, i_mdls, i_params )
 % 
 %   Learn a semantic segmentation model
 %   
@@ -42,6 +42,7 @@ nData_approx = round(nImgs*imgWH(1)*imgWH(2)*1); %%FIXME: assume same sized imag
 
 ixy = zeros(3, nData_approx);
 startInd = 1;
+feats = [];
 for iInd=1:nImgs
     % build sampleMask
     sampleMask = true(imgWH(2), imgWH(1));
@@ -55,6 +56,7 @@ for iInd=1:nImgs
     % extract features
     i_params.feat.sampleMask = sampleMask;
     [feat, tbParams] = GetDenseFeature(i_imgs(iInd), {'TextonBoostInt'}, i_params.feat);
+    feats = [feats; feat];
     
     % construct meta data
     [rows, cols] = find(sampleMask);
@@ -80,7 +82,7 @@ fprintf('* Running time PredSemSeg_mex: %s sec.\n', num2str(toc(mexTID)));
 
 %% return
 o_params = struct('feat', tbParams, 'classifier', JBParams);
-
+o_feats = feats;
 [~, cls] = max(dist, [], 2);
 % o_dist = dist;
 

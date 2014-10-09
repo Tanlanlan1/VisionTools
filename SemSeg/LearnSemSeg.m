@@ -68,11 +68,16 @@ nData_approx = round(nImgs*size(i_imgs(1).img, 2)*size(i_imgs(1).img, 1)); %%FIX
 % pad
 if i_params.pad
     for iInd=1:nImgs
-        i_imgs(iInd).img = padarray(i_imgs(iInd).img, [LOFilterWH_half(2) LOFilterWH_half(1) 0], 'symmetric', 'both');
+        % skip padding if there are precomputed results
+        if ~(isfield(i_imgs(iInd), 'Texton') || isfield(i_imgs(iInd), 'TextonBoostInt'))
+            i_imgs(iInd).img = padarray(i_imgs(iInd).img, [LOFilterWH_half(2) LOFilterWH_half(1) 0], 'symmetric', 'both');
+        end
         i_labels(iInd).cls = padarray(i_labels(iInd).cls, [LOFilterWH_half(2) LOFilterWH_half(1) 0], 'symmetric', 'both');
+        
     end
 end
-
+assert(size(i_labels(1).cls, 1) == size(i_imgs(1).img, 1));
+assert(size(i_labels(1).cls, 2) == size(i_imgs(1).img, 2));
 % extract Texton
 [feats_texton, tbParams] = GetDenseFeature(i_imgs, {'Texton'}, tbParams); %%FIXME: sampling points are different with JointBoost
 
@@ -190,7 +195,9 @@ end
 
 %% return
 o_mdl = mdls; 
-o_params = struct('feat', tbParams, 'classifier', JBParams);
+o_params = i_params;
+o_params.feat = tbParams;
+o_params.classifier = JBParams;
 o_feats = feats_textInt;
 end
 
