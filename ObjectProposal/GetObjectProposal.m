@@ -53,19 +53,19 @@ if ~isfield(i_params, 'k')
     i_params.k = 100;
 end
 if ~isfield(i_params, 'sigma')
-    i_params.sigma = 0.8;
+    i_params.sigma = 0.8; %0.8
 end
 if ~isfield(i_params, 'minRatio')
-    i_params.minRatio = 0.001;
+    i_params.minRatio = 0.02;
 end
 if ~isfield(i_params, 'maxRatio')
-    i_params.maxRatio = 0.1;
+    i_params.maxRatio = 0.8;
 end
 if ~isfield(i_params, 'nmsOverlap')
     i_params.nmsOverlap = 0.5;
 end
 if ~isfield(i_params, 'bounaryRatio')
-    i_params.bounaryRatio = 0.2;
+    i_params.bounaryRatio = 0.1;
 end
 
 if iscell(i_imgs)
@@ -92,6 +92,7 @@ parfor iInd=1:nImg
     im = im2double(i_imgs{iInd});
     minSize = i_params.k;
     nPix = size(im, 1)*size(im, 2);
+    imgWH = [size(im, 2); size(im, 1)];
     
     % run
     [boxes, blobIndIm, blobBoxes, hierarchy] = Image2HierarchicalGrouping(im, i_params.sigma, i_params.k, minSize, colorType, simFunctionHandles);
@@ -117,10 +118,16 @@ parfor iInd=1:nImg
         curBlob = hBlobs{hInd};
         valid = false(numel(curBlob), 1);
         for bInd=1:numel(curBlob)
-            nCurPix = sum(curBlob{bInd}.mask(:));
-            if i_params.minRatio*nPix <= nCurPix && i_params.maxRatio*nPix >= nCurPix
+%             nCurPix = sum(curBlob{bInd}.mask(:));
+%             if i_params.minRatio*nPix <= nCurPix && i_params.maxRatio*nPix >= nCurPix
+%                 valid(bInd) = true;
+%             end
+            
+            curWH = [size(curBlob{bInd}.mask, 2); size(curBlob{bInd}.mask, 1)];
+            if all(i_params.minRatio*imgWH <= curWH) && all(i_params.maxRatio*imgWH >= curWH)
                 valid(bInd) = true;
             end
+            
         end
         hBlobs_pruned{hInd} = curBlob(valid);
         % show
@@ -135,7 +142,8 @@ parfor iInd=1:nImg
     for bInd=1:numel(blobs)
         % [x y w h]
         blobs(bInd).rect_matlab = [blobs(bInd).rect(2) blobs(bInd).rect(1) blobs(bInd).rect(4)-blobs(bInd).rect(2) blobs(bInd).rect(3)-blobs(bInd).rect(1)];
-        blobs(bInd).convexity = sum(blobs(bInd).mask(:))/(blobs(bInd).rect_matlab(3)*blobs(bInd).rect_matlab(4));
+%         blobs(bInd).convexity = sum(blobs(bInd).mask(:))/(blobs(bInd).rect_matlab(3)*blobs(bInd).rect_matlab(4));
+        blobs(bInd).convexity = sum(blobs(bInd).mask(:))/sum(sum(bwconvhull(blobs(bInd).mask)));
     end
     
     % post-process to remove blobs at the boundary
