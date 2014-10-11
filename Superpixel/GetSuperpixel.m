@@ -11,7 +11,7 @@ function [ o_label ] = GetSuperpixel( i_img, i_method, i_params )
 %           'NCut'              i_params.N: the number of segments
 %                               i_params.verbosity: the level of verbosity [0 (slient), 1]
 % 
-%           'Turbopixel'        i_params.N: the number of segments
+%           'TurboPixel'        i_params.N: the number of segments
 %                               i_params.verbosity: the level of verbosity [0 (slient), 1]
 % 
 %           'SLIC'              i_params.N: the number of segments
@@ -32,7 +32,9 @@ function [ o_label ] = GetSuperpixel( i_img, i_method, i_params )
 %
 
 %% init
-assert(isfield(i_params, 'N'));
+if nargin == 2
+    i_params = [];
+end
 if ~isfield(i_params, 'verbosity')
     i_params.verbosity = 0;
 end
@@ -42,6 +44,7 @@ end
 %% run a superpixel algorithm
 switch i_method
     case 'NCut'
+        assert(isfield(i_params, 'N'));
         [Inr, Inc, nd] = size(i_img);
         if (nd>1),
             I = im2double(rgb2gray(i_img));
@@ -62,10 +65,11 @@ switch i_method
         
         o_label = imresize(SegLabel, [Inr, Inc], 'nearest');
         
-    case 'Turbopixel'
-        addpath('../TurboPixels');
+    case 'TurboPixel'
+        assert(isfield(i_params, 'N'));
+        addpath(genpath('../TurboPixels'));
         [phi,boundary,disp_img, sup_image] = superpixels(im2double(i_img), i_params.N);
-        rmpath('../TurboPixels');
+        rmpath(genpath('../TurboPixels'));
         
         o_label = sup_image;
         
@@ -75,6 +79,40 @@ switch i_method
         end
         
     case 'SLIC'
+        %% set default values
+        if ~isfield(i_params, 'regionSize')
+            i_params.regionSize = 20;
+        end
+        if ~isfield(i_params, 'regularizer')
+            i_params.regularizer = 0.1;
+        end
+        
+        %% add path
+        thisFilePath = fileparts(mfilename('fullpath'));
+        vlfeatmexpath = [thisFilePath '/../vlfeat/toolbox/'];
+        vlfeatmexapthall = genpath(vlfeatmexpath);
+        addpath(vlfeatmexapthall);
+        if ~strfind(getenv('LD_LIBRARY_PATH'), vlfeatmexapthall)
+            setenv('LD_LIBRARY_PATH', [vlfeatmexapthall ':' getenv('LD_LIBRARY_PATH')]);
+        end
+        %% run
+        imlab = vl_xyz2lab(vl_rgb2xyz(im2double(i_img)));
+        o_label = vl_slic(single(imlab), i_params.regionSize, i_params.regularizer);
+        if i_params.verbosity >= 1
+            figure(30000);
+            imagesc(im2double(i_img));
+            hold on;
+            h = imagesc(imdilate(edge(double(o_label)/double(max(o_label(:))), 'sobel', 0), ones(2)));
+            axis image;
+            set(h, 'AlphaData', 0.7);
+            hold off;
+            
+        end
+        
+        %% rm path
+        rmpath(vlfeatmexapthall);
+    otherwise
+        warning('* Incorrect method: %s', i_method);
 end
 
 end
