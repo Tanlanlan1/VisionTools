@@ -56,7 +56,7 @@ if ~isfield(i_params, 'sigma')
     i_params.sigma = 0.8; %0.8
 end
 if ~isfield(i_params, 'minRatio')
-    i_params.minRatio = 0.02;
+    i_params.minRatio = 0.01;
 end
 if ~isfield(i_params, 'maxRatio')
     i_params.maxRatio = 0.8;

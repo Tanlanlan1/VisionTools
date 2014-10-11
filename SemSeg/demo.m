@@ -8,7 +8,7 @@ close all;
 annotate = true;
 saveAnnotation = true;
 verbosity = 1;
-nPerClsSample = 500;
+nPerClsSample = 200;
 resizeRatio = 1;
 
 
