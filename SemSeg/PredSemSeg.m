@@ -33,28 +33,35 @@ function [ o_cls, o_dist, o_params, o_feats ] = PredSemSeg( i_imgs, i_mdls, i_pa
 %
 
 %% init
+assert(size(i_imgs, 1) == 1); %%FIXME: assume only one image with different scale images
 nImgs = numel(i_imgs);
+imgWHs = zeros(2, nImgs);
+sampleMasks = struct('mask', []);
+for iInd=1:nImgs
+    imgWHs(:, iInd) = [size(i_imgs(iInd).img, 2); size(i_imgs(iInd).img, 1)];
+    sampleMasks(iInd).mask = true(imgWHs(2, iInd), imgWHs(1, iInd));
+end
+
 
 %% extract features and predict
 LOFilterWH_half = (i_params.feat.LOFilterWH-1)/2; 
-imgWH = [size(i_imgs(1).img, 2); size(i_imgs(1).img, 1)];
-nData_approx = round(nImgs*imgWH(1)*imgWH(2)*1); %%FIXME: assume same sized images
+nData_approx = sum(prod(imgWHs, 1));
 
 ixy = zeros(3, nData_approx);
 startInd = 1;
 feats = [];
 for iInd=1:nImgs
     % build sampleMask
-    sampleMask = true(imgWH(2), imgWH(1));
+    sampleMask = sampleMasks(iInd).mask;
+
     
-    % falsify boundaries
-    sampleMask(1:LOFilterWH_half(2), :) = false;
-    sampleMask(imgWH(2)-LOFilterWH_half(2):end, :) = false;
-    sampleMask(:, 1:LOFilterWH_half(1)) = false;
-    sampleMask(:, imgWH(1)-LOFilterWH_half(1):end, :) = false;
+%     % falsify boundaries
+%     sampleMask(1:LOFilterWH_half(2), :) = false;
+%     sampleMask(imgWH(2)-LOFilterWH_half(2):end, :) = false;
+%     sampleMask(:, 1:LOFilterWH_half(1)) = false;
+%     sampleMask(:, imgWH(1)-LOFilterWH_half(1):end, :) = false;
     
     % extract features
-    i_params.feat.sampleMask = sampleMask;
     [feat, tbParams] = GetDenseFeature(i_imgs(iInd), {'TextonBoostInt'}, i_params.feat);
     feats = [feats; feat];
     
@@ -67,7 +74,7 @@ for iInd=1:nImgs
     startInd = startInd+size(xy, 2);
 end
 ixy(:, startInd:end) = [];
-x_meta = struct('ixy', ixy, 'intImgFeat', feat, 'TBParams', tbParams);
+x_meta = struct('ixy', ixy, 'intImgFeat', feats, 'TBParams', tbParams);
 
 % predict
 JBParams = i_params.classifier;
@@ -80,24 +87,47 @@ mexTID = tic;
 dist = PredSemSeg_mex(x_meta_mex, i_mdls, JBParams_mex);
 fprintf('* Running time PredSemSeg_mex: %s sec.\n', num2str(toc(mexTID)));
 
+%% max_s
+assert(size(i_imgs, 1) == 1); %%FIXME: assume only one image with different scale images
+iInd = 1;
+refImgInd = [i_imgs(iInd, :).scale] == 1;
+imgWH_s1 = [size(i_imgs(iInd, refImgInd).img, 2); size(i_imgs(iInd, refImgInd).img, 1)];
+dist_max_s = zeros(imgWH_s1(2), imgWH_s1(1), size(dist, 2));
+for iInd=1:size(i_imgs, 1)
+    refImgInd = [i_imgs(iInd, :).scale] == 1;
+    assert(~isempty(refImgInd));
+    imgWH_s1 = [size(i_imgs(iInd, refImgInd).img, 2); size(i_imgs(iInd, refImgInd).img, 1)];
+    dist_s = zeros(imgWH_s1(2), imgWH_s1(1), size(i_imgs, 2), size(dist, 2));
+    for sInd=1:size(i_imgs, 2)
+        curScale = i_imgs(iInd, sInd).scale;
+        for cInd=1:size(dist, 2)
+            iInd_lin = sub2ind(size(i_imgs), iInd, sInd);
+            sampleMask = sampleMasks(iInd, sInd).mask;
+            curDist = dist(ixy(1, :) == iInd_lin, :);
+
+            dist_tmp = zeros(size(sampleMask));
+            dist_tmp(sampleMask) = curDist(:, cInd);
+            dist_s(:, :, sInd, cInd) = imresize(dist_tmp, 1/curScale);
+        end
+    end
+    dist_max_s(:, :, :) = squeeze(max(dist_s, [], 3));
+end
+
+
+% o_dist = repmat(zeros(size(sampleMask)), [1 1 size(dist, 2)]);
+% for cInd=1:size(dist, 2)
+%     dist_tmp = zeros(size(sampleMask));
+%     dist_tmp(sampleMask) = dist(:, cInd);
+%     o_dist(:, :, cInd) = dist_tmp;
+% end
+
+
 %% return
 o_params = struct('feat', tbParams, 'classifier', JBParams);
 o_feats = feats;
-[~, cls] = max(dist, [], 2);
-% o_dist = dist;
+o_dist = dist_max_s;
+[~, o_cls] = max(o_dist, [], 3);
 
-assert(nImgs == 1);
-sampleMask = o_params.feat.sampleMask;
-
-o_cls = zeros(size(sampleMask));
-o_cls(sampleMask) = cls;
-
-o_dist = repmat(zeros(size(sampleMask)), [1 1 size(dist, 2)]);
-for cInd=1:size(dist, 2)
-    dist_tmp = zeros(size(sampleMask));
-    dist_tmp(sampleMask) = dist(:, cInd);
-    o_dist(:, :, cInd) = dist_tmp;
-end
 end
 
 function [x_meta_mex, JBParams_mex] = convType(x_meta, JBParams)

@@ -124,6 +124,15 @@ public:
     }
 };
 
+void ConvMat2MMat(Mat& i_mat, const mxArray* o_mat){
+    const mwSize *pDims = mxGetDimensions(o_mat);
+    size_t nRows = pDims[0];
+    size_t nCols = pDims[1];
+    for(int rInd=0; rInd<nRows; ++rInd)
+        for(int cInd=0; cInd<nCols; ++cInd)
+            (*GetDblPnt(o_mat, rInd, cInd)) = i_mat.GetRef(rInd, cInd);
+}
+
 void ConvMMdl2CMdl(const mxArray* i_mdls, vector<struct JBMdl> &o_mdls){
     int nMdls = mxGetNumberOfElements(i_mdls);
     for(int mInd=0; mInd<nMdls; ++mInd){
@@ -468,7 +477,7 @@ double GetithTextonBoost(int dInd, int fInd, struct XMeta &i_x_meta){
     int LOFWH[2];
     LOFWH[0] = i_x_meta.TBParams.LOFilterWH[0];
     LOFWH[1] = i_x_meta.TBParams.LOFilterWH[1];
-    
+   
     int nTextons = i_x_meta.TBParams.nTextons;
     
     int pInd = (int)floor(((double)fInd)/((double)nTextons)); // zero-base
@@ -484,6 +493,12 @@ double GetithTextonBoost(int dInd, int fInd, struct XMeta &i_x_meta){
     ixy[1] = i_x_meta.ixys[1 + 3*dInd] - 1; // zero-base
     ixy[2] = i_x_meta.ixys[2 + 3*dInd] - 1; // zero-base
     
+    int nIntImgRows = i_x_meta.intImgFeat[ixy[0]].nRows;
+    int nIntImgCols = i_x_meta.intImgFeat[ixy[0]].nCols;
+    int imgWH[2];
+    imgWH[0] = nIntImgCols-1;
+    imgWH[1] = nIntImgRows-1;
+    
     int LOF_tl[2];
     LOF_tl[0] = ixy[1] - ((int)(LOFWH[0]-1)/2);
     LOF_tl[1] = ixy[2] - ((int)(LOFWH[1]-1)/2);
@@ -492,28 +507,25 @@ double GetithTextonBoost(int dInd, int fInd, struct XMeta &i_x_meta){
     xy_part_tl[0] = LOF_tl[0] + part[0];
     xy_part_tl[1] = LOF_tl[1] + part[2];
     
+    int xy_part_tl_trunk[2];
+    xy_part_tl_trunk[0] = min(max(0, xy_part_tl[0]), imgWH[0]-1); // zero-base
+    xy_part_tl_trunk[1] = min(max(0, xy_part_tl[1]), imgWH[1]-1); // zero-base
+    
     int xy_part_br[2];
     xy_part_br[0] = LOF_tl[0] + part[1];
     xy_part_br[1] = LOF_tl[1] + part[3];
     
+    int xy_part_br_trunk[2];
+    xy_part_br_trunk[0] = min(max(0, xy_part_br[0]), imgWH[0]-1); // zero-base
+    xy_part_br_trunk[1] = min(max(0, xy_part_br[1]), imgWH[1]-1); // zero-base
+    
     // extract and return
-    int nIntImgRows = i_x_meta.intImgFeat[ixy[0]].nRows;
-    int nIntImgCols = i_x_meta.intImgFeat[ixy[0]].nCols;
-    double I1 = i_x_meta.intImgFeat[ixy[0]].feat[(xy_part_br[1]+1) + nIntImgRows*(xy_part_br[0]+1) + nIntImgRows*nIntImgCols*tInd];
-    double I2 = i_x_meta.intImgFeat[ixy[0]].feat[(xy_part_tl[1]) + nIntImgRows*(xy_part_br[0]+1) + nIntImgRows*nIntImgCols*tInd];
-    double I3 = i_x_meta.intImgFeat[ixy[0]].feat[(xy_part_br[1]+1) + nIntImgRows*(xy_part_tl[0]) + nIntImgRows*nIntImgCols*tInd];
-    double I4 = i_x_meta.intImgFeat[ixy[0]].feat[(xy_part_tl[1]) + nIntImgRows*(xy_part_tl[0]) + nIntImgRows*nIntImgCols*tInd];
+    double I1 = i_x_meta.intImgFeat[ixy[0]].feat[(xy_part_br_trunk[1]+1) + nIntImgRows*(xy_part_br_trunk[0]+1) + nIntImgRows*nIntImgCols*tInd];
+    double I2 = i_x_meta.intImgFeat[ixy[0]].feat[(xy_part_tl_trunk[1]) + nIntImgRows*(xy_part_br_trunk[0]+1) + nIntImgRows*nIntImgCols*tInd];
+    double I3 = i_x_meta.intImgFeat[ixy[0]].feat[(xy_part_br_trunk[1]+1) + nIntImgRows*(xy_part_tl_trunk[0]) + nIntImgRows*nIntImgCols*tInd];
+    double I4 = i_x_meta.intImgFeat[ixy[0]].feat[(xy_part_tl_trunk[1]) + nIntImgRows*(xy_part_tl_trunk[0]) + nIntImgRows*nIntImgCols*tInd];
     double Area = (xy_part_br[0] - xy_part_tl[0] + 1)*(xy_part_br[1] - xy_part_tl[1] + 1);
     return (I1-I2-I3+I4)/Area;
-    
-    
-//     mxArray *curIntImg = mxGetField(i_x_meta.intImgFeat, ixy[0], "feat");
-//     return (
-//             *GetDblPnt(curIntImg, xy_part_br[1]+1, xy_part_br[0]+1, tInd) - 
-//             *GetDblPnt(curIntImg, xy_part_tl[1]  , xy_part_br[0]+1, tInd) - 
-//             *GetDblPnt(curIntImg, xy_part_br[1]+1, xy_part_tl[0]  , tInd) + 
-//             *GetDblPnt(curIntImg, xy_part_tl[1]  , xy_part_tl[0]  , tInd))/
-//             ((xy_part_br[0] - xy_part_tl[0] + 1)*(xy_part_br[1] - xy_part_tl[1] + 1));
 }
 
 

@@ -1,6 +1,7 @@
 %% init
 totTic = tic;
 addpath(genpath('../Feature')); %%FIXME
+addpath(genpath('../Superpixel')); %%FIXME
 addpath(genpath('../JointBoost')); %%FIXME
 addpath(genpath('../libMatlabHelper')); %%FIXME
 close all;
@@ -42,7 +43,7 @@ JBParams = struct(...
 if annotate
     % obtain annotations
     img1 = imresize(imread('ted1.jpg'), resizeRatio);
-    img2 = imresize(imread('ted2.jpg'), resizeRatio);
+    img2 = imresize(imread('ted2_small.jpg'), resizeRatio);
     if exist('ann.mat', 'file') && saveAnnotation
         load('ann.mat');
     else
@@ -66,6 +67,9 @@ if annotate
         save('ann.mat', 'rects');
     end
     % construct data structure
+%     [~, supsub1] = GetSuperpixel( img1, 'SLIC');
+%     [~, supsub2] = GetSuperpixel( img2, 'SLIC');
+%     imgs = struct('img', {img1, img2}, 'superpixels_sub', {supsub1, supsub2});
     imgs = struct('img', {img1, img2});
     labels = struct('cls', {zeros(size(img1, 1), size(img1, 2)), []});
     for rInd=1:size(rects, 1)
@@ -99,14 +103,34 @@ else
     JBParams.nCls = nCls;
 end
 
+SemSegParams = struct(...
+    'pad', true, ...
+    'feat', TBParams, ...
+    'nPerClsSample', nPerClsSample, ...
+    'classifier', JBParams, ...
+    'verbosity', 1);
+
 %% learn
-[mdls, params] = LearnSemSeg(imgs(trainInd), labels(trainInd), struct('pad', true, 'feat', TBParams, 'nPerClsSample', nPerClsSample,'classifier', JBParams, 'verbosity', 1));
+[mdls, params_learn] = LearnSemSeg(imgs(trainInd), labels(trainInd), SemSegParams);
 
 %% predict
-[cls, vals, params] = PredSemSeg(imgs(testInd), mdls, params);
+% [cls, vals, params_pred] = PredSemSeg(imgs(testInd), mdls, params_learn);
+scales = 0.6:0.4:1.4;
+% scales = 1;
+imgs_new = struct('img', [], 'scale', []);
+imgs_test = imgs(testInd);
+for iInd=1:numel(imgs_test)
+    for sInd=1:numel(scales)
+        imgs_new(iInd, sInd).img = imresize(imgs_test(iInd).img, scales(sInd));
+        imgs_new(iInd, sInd).scale = scales(sInd);
+    end
+end
+[cls, vals, params_pred] = PredSemSeg(imgs_new, mdls, params_learn);
+
+
 
 %% show
-showPred( cls, vals, params, imgs(trainInd).img, labels(trainInd), imgs(testInd).img );
+showPred( cls, vals, params_pred, imgs(trainInd).img, labels(trainInd), imgs(testInd).img );
 
 %%
 fprintf('* Total time: %s\n', num2str(toc(totTic)));

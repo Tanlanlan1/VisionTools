@@ -23,7 +23,7 @@ function [ o_feat, o_params ] = GetDenseFeature( i_imgs, i_cues, i_params )
 %           i_params.LOFilterWH     ('textonBoost') the width and height of a
 %                                   layout filter
 %           i_params.sampleMask(rm)     ('textonBoost' or for all) extract features only
-%                                   on the selected region (FIXME: use samplingRatio)
+%                                   on the selected region (FIXME: Not used, use samplingRatio)
 % 
 % ----------
 %   Output:
@@ -57,7 +57,8 @@ if ~isfield(i_params, 'verbosity')
     i_params.verbosity = 0;
 end
 
-%%FIXME: samplingRatio, samplingMask...duplicated concepts
+%%FIXME: samplingRatio, samplingMask...duplicated concepts, samplingMask is
+%%not used now
 
 
 %% extract features
