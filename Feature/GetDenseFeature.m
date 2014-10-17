@@ -193,6 +193,8 @@ end
 for iInd=1:nImgs
     if ~isfield(i_imgs(iInd), 'Texture')
         [i_imgs(iInd).Texture, fb] = GetTextureLMFeature(i_imgs(iInd).img);
+        % add colors
+        i_imgs(iInd).Texture = cat(3, i_imgs(iInd).Texture, GetRGBDenseFeature(i_imgs(iInd).img));
     end
 end
 

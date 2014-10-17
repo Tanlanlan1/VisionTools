@@ -1,4 +1,4 @@
-function [ o_cls, o_dist, o_params, o_feats ] = PredSemSeg( i_imgs, i_mdls, i_params )
+function [ o_pred, o_params, o_feats ] = PredSemSeg( i_imgs, i_mdls, i_params )
 % 
 %   Learn a semantic segmentation model
 %   
@@ -82,7 +82,7 @@ JBParams.nData = size(ixy, 2);
 if JBParams.verbosity >= 1
     fprintf('* Predict %d data\n', JBParams.nData);
 end
-[x_meta_mex, JBParams_mex] = convType(x_meta, JBParams);
+[x_meta_mex, ~, JBParams_mex] = convParamsType(x_meta, [], JBParams);
 mexTID = tic;
 dist = PredSemSeg_mex(x_meta_mex, i_mdls, JBParams_mex);
 fprintf('* Running time PredSemSeg_mex: %s sec.\n', num2str(toc(mexTID)));
@@ -92,27 +92,34 @@ assert(size(i_imgs, 1) == 1); %%FIXME: assume only one image with different scal
 iInd = 1;
 refImgInd = [i_imgs(iInd, :).scale] == 1;
 imgWH_s1 = [size(i_imgs(iInd, refImgInd).img, 2); size(i_imgs(iInd, refImgInd).img, 1)];
-dist_max_s = zeros(imgWH_s1(2), imgWH_s1(1), size(dist, 2));
-for iInd=1:size(i_imgs, 1)
-    refImgInd = [i_imgs(iInd, :).scale] == 1;
-    assert(~isempty(refImgInd));
-    imgWH_s1 = [size(i_imgs(iInd, refImgInd).img, 2); size(i_imgs(iInd, refImgInd).img, 1)];
-    dist_s = zeros(imgWH_s1(2), imgWH_s1(1), size(i_imgs, 2), size(dist, 2));
-    for sInd=1:size(i_imgs, 2)
-        curScale = i_imgs(iInd, sInd).scale;
-        for cInd=1:size(dist, 2)
-            iInd_lin = sub2ind(size(i_imgs), iInd, sInd);
-            sampleMask = sampleMasks(iInd, sInd).mask;
-            curDist = dist(ixy(1, :) == iInd_lin, :);
 
-            dist_tmp = zeros(size(sampleMask));
-            dist_tmp(sampleMask) = curDist(:, cInd);
-            dist_s(:, :, sInd, cInd) = imresize(dist_tmp, 1/curScale);
+pred = struct('dist', [], 'cls', []);
+for cfInd=1:size(dist, 3)
+
+    dist_max_s = zeros(imgWH_s1(2), imgWH_s1(1), size(dist, 2));
+    for iInd=1:size(i_imgs, 1)
+        refImgInd = [i_imgs(iInd, :).scale] == 1;
+        assert(~isempty(refImgInd));
+        imgWH_s1 = [size(i_imgs(iInd, refImgInd).img, 2); size(i_imgs(iInd, refImgInd).img, 1)];
+        dist_s = zeros(imgWH_s1(2), imgWH_s1(1), size(i_imgs, 2), size(dist, 2));
+        for sInd=1:size(i_imgs, 2)
+            curScale = i_imgs(iInd, sInd).scale;
+            for cInd=1:size(dist, 2)
+                iInd_lin = sub2ind(size(i_imgs), iInd, sInd);
+                sampleMask = sampleMasks(iInd, sInd).mask;
+                curDist = dist(ixy(1, :) == iInd_lin, :, cfInd);
+
+                dist_tmp = zeros(size(sampleMask));
+                dist_tmp(sampleMask) = curDist(:, cInd);
+                %dist_s(:, :, sInd, cInd) = imresize(dist_tmp, 1/curScale);
+                dist_s(:, :, sInd, cInd) = imresize(dist_tmp, [size(dist_s, 1), size(dist_s, 2)]);
+            end
         end
+        dist_max_s(:, :, :) = squeeze(max(dist_s, [], 3));
     end
-    dist_max_s(:, :, :) = squeeze(max(dist_s, [], 3));
+    pred(cfInd).dist = dist_max_s;
+    [~, pred(cfInd).cls] = max(dist_max_s, [], 3);
 end
-
 
 % o_dist = repmat(zeros(size(sampleMask)), [1 1 size(dist, 2)]);
 % for cInd=1:size(dist, 2)
@@ -125,31 +132,32 @@ end
 %% return
 o_params = struct('feat', tbParams, 'classifier', JBParams);
 o_feats = feats;
-o_dist = dist_max_s;
-[~, o_cls] = max(o_dist, [], 3);
+o_pred = pred;
+% o_dist = dist_max_s;
+% [~, o_cls] = max(o_dist, [], 3);
 
 end
 
-function [x_meta_mex, JBParams_mex] = convType(x_meta, JBParams)
-x_meta_mex = x_meta;
-% x_meta.ixy
-x_meta_mex.ixy = int32(x_meta_mex.ixy);
-% x_meta.intImgfeat
-for iInd=1:numel(x_meta_mex.intImgFeat)
-    x_meta_mex.intImgFeat(iInd).TextonIntImg = double(x_meta_mex.intImgFeat(iInd).TextonIntImg);
-end
-% x_meta.tbParams
-x_meta_mex.TBParams.LOFilterWH = int32(x_meta_mex.TBParams.LOFilterWH);
-x_meta_mex.TBParams.nTexton = int32(x_meta_mex.TBParams.nTexton);
-x_meta_mex.TBParams.parts = int32(x_meta_mex.TBParams.parts);
-% JBParams
-JBParams_mex = JBParams;
-JBParams_mex.nWeakLearner = int32(JBParams_mex.nWeakLearner);
-JBParams_mex.featDim = int32(JBParams_mex.featDim);
-JBParams_mex.nData = int32(JBParams_mex.nData);
-JBParams_mex.nCls = int32(JBParams_mex.nCls);
-JBParams_mex.featSelRatio = double(JBParams_mex.featSelRatio);
-JBParams_mex.featValRange = double(JBParams_mex.featValRange(:));
-JBParams_mex.verbosity = int32(JBParams_mex.verbosity);
-
-end
+% function [x_meta_mex, JBParams_mex] = convType(x_meta, JBParams)
+% x_meta_mex = x_meta;
+% % x_meta.ixy
+% x_meta_mex.ixy = int32(x_meta_mex.ixy);
+% % x_meta.intImgfeat
+% for iInd=1:numel(x_meta_mex.intImgFeat)
+%     x_meta_mex.intImgFeat(iInd).TextonIntImg = double(x_meta_mex.intImgFeat(iInd).TextonIntImg);
+% end
+% % x_meta.tbParams
+% x_meta_mex.TBParams.LOFilterWH = int32(x_meta_mex.TBParams.LOFilterWH);
+% x_meta_mex.TBParams.nTexton = int32(x_meta_mex.TBParams.nTexton);
+% x_meta_mex.TBParams.parts = int32(x_meta_mex.TBParams.parts);
+% % JBParams
+% JBParams_mex = JBParams;
+% JBParams_mex.nWeakLearner = int32(JBParams_mex.nWeakLearner);
+% JBParams_mex.featDim = int32(JBParams_mex.featDim);
+% JBParams_mex.nData = int32(JBParams_mex.nData);
+% JBParams_mex.nCls = int32(JBParams_mex.nCls);
+% JBParams_mex.featSelRatio = double(JBParams_mex.featSelRatio);
+% JBParams_mex.featValRange = double(JBParams_mex.featValRange(:));
+% JBParams_mex.verbosity = int32(JBParams_mex.verbosity);
+% 
+% end

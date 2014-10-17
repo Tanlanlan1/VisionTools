@@ -9,7 +9,7 @@ close all;
 annotate = true;
 saveAnnotation = true;
 verbosity = 1;
-nPerClsSample = 200;
+nPerClsSample = 500;
 resizeRatio = 1;
 
 
@@ -28,13 +28,15 @@ end
 TBParams = struct(...
     'samplingRatio', 0.1, ...
     'nTexton', 64, ...
-    'nPart', 16, ...
-    'LOFilterWH', [201; 201], ...
+    'nPart', 100, ...
+    'LOFilterWH', [101; 101], ...%%FIXME: adoptive!!
     'verbosity', verbosity);
 
 % JointBoost paramsimg1
 JBParams = struct(...
-    'nWeakLearner', 200, ... 
+    'nWeakLearner', 200, ...
+    'binary', 1, ...
+    'learnBG', 0, ...
     'featDim', TBParams.nPart*TBParams.nTexton, ...
     'featSelRatio', 0.1, ...
     'featValRange', 0:0.1:1, ...
@@ -43,7 +45,7 @@ JBParams = struct(...
 if annotate
     % obtain annotations
     img1 = imresize(imread('ted1.jpg'), resizeRatio);
-    img2 = imresize(imread('ted2_small.jpg'), resizeRatio);
+    img2 = imresize(imread('ted2_d5.jpg'), resizeRatio);
     if exist('ann.mat', 'file') && saveAnnotation
         load('ann.mat');
     else
@@ -115,7 +117,7 @@ SemSegParams = struct(...
 
 %% predict
 % [cls, vals, params_pred] = PredSemSeg(imgs(testInd), mdls, params_learn);
-scales = 0.6:0.4:1.4;
+scales = 1:0.5:2;
 % scales = 1;
 imgs_new = struct('img', [], 'scale', []);
 imgs_test = imgs(testInd);
@@ -125,12 +127,11 @@ for iInd=1:numel(imgs_test)
         imgs_new(iInd, sInd).scale = scales(sInd);
     end
 end
-[cls, vals, params_pred] = PredSemSeg(imgs_new, mdls, params_learn);
-
+[pred, params_pred] = PredSemSeg(imgs_new, mdls, params_learn);
 
 
 %% show
-showPred( cls, vals, params_pred, imgs(trainInd).img, labels(trainInd), imgs(testInd).img );
+showPred( pred, params_pred, imgs(trainInd).img, labels(trainInd), imgs(testInd).img );
 
 %%
 fprintf('* Total time: %s\n', num2str(toc(totTic)));

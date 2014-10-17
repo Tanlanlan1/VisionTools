@@ -1,10 +1,10 @@
-function [o_hFig] = showPred( cls, vals, params, trImg, trLabels, teImg, outFFmt )
+function [o_hFig] = showPred( pred, params, trImg, trLabels, teImg, outFFmt )
 %SHOWPRED Summary of this function goes here
 %   Detailed explanation goes here
 
 %% init
 
-if nargin == 6
+if nargin == 5
     outFFmt = [];
 end
 
@@ -14,44 +14,57 @@ nCls = params.classifier.nCls - 1; % rm bg
 % sampleMask = params.feat.sampleMask;
 % cls_ori = zeros(size(sampleMask));
 % cls_ori(sampleMask) = cls;
-cls_ori = cls;
 
-hFig = 3000;
-%% show
-figure(hFig); clf;
-lineCols = colormap(lines);
-subplot_tight(1, 2, 1);
-imshow(trImg);
-hold on;
-layerImg = zeros(size(trImg));
-for cInd=1:nCls
-    layerImg_c = zeros(size(trImg));
-    layerImg_c(repmat(trLabels.cls == cInd, [1 1 3])) = 1;
-    layerImg = layerImg + bsxfun(@times, layerImg_c, reshape(lineCols(cInd, :), [1 1 3]));
+o_hFig = zeros(numel(pred), 1);
+for cfInd=1:numel(pred)
+    cls_ori = pred(cfInd).cls;
+
+    hFig = 3000 + cfInd;
+    %% show
+    figure(hFig); clf;
+    lineCols = colormap(lines);
+    subplot_tight(1, 2, 1);
+    imshow(trImg);
+    hold on;
+    layerImg = zeros(size(trImg));
+    clsColors = zeros(nCls, 3);
+    for cInd=1:nCls
+        layerImg_c = zeros(size(trImg));
+        layerImg_c(repmat(trLabels.cls == cInd, [1 1 3])) = 1;
+        layerImg = layerImg + bsxfun(@times, layerImg_c, reshape(lineCols(cInd, :), [1 1 3]));
+        clsColors(cInd, :) = lineCols(cInd, :);
+    end
+    h = imagesc(layerImg);
+    set(h, 'AlphaData', 0.7);
+    hold off;
+    title('training regions');
+
+    subplot_tight(1, 2, 2);
+    imshow(teImg);
+    hold on;
+    layerImg = zeros(size(teImg));
+    if params.classifier.binary %%FIXME: any good way to handle it? 
+        cInd = 1;
+        layerImg_c = zeros(size(teImg));
+        layerImg_c(repmat(cls_ori == cInd, [1 1 3])) = 1;
+        layerImg = layerImg + bsxfun(@times, layerImg_c, reshape(clsColors(cfInd, :), [1 1 3]));
+    else
+        for cInd=1:nCls
+            layerImg_c = zeros(size(teImg));
+            layerImg_c(repmat(cls_ori == cInd, [1 1 3])) = 1;
+            layerImg = layerImg + bsxfun(@times, layerImg_c, reshape(clsColors(cInd, :), [1 1 3]));
+        end
+    end
+    h = imagesc(layerImg);
+    set(h, 'AlphaData', 0.7);
+    hold off;
+    title('Predicted regions');
+
+    if ~isempty(outFFmt)
+        saveas(hFig, outFFmt, 'png');
+    end
+
+    o_hFig(cfInd) = hFig;
 end
-h = imagesc(layerImg);
-set(h, 'AlphaData', 0.7);
-hold off;
-title('training regions');
-
-subplot_tight(1, 2, 2);
-imshow(teImg);
-hold on;
-layerImg = zeros(size(teImg));
-for cInd=1:nCls
-    layerImg_c = zeros(size(teImg));
-    layerImg_c(repmat(cls_ori == cInd, [1 1 3])) = 1;
-    layerImg = layerImg + bsxfun(@times, layerImg_c, reshape(lineCols(cInd, :), [1 1 3]));
-end
-h = imagesc(layerImg);
-set(h, 'AlphaData', 0.7);
-hold off;
-title('Predicted regions');
-
-if ~isempty(outFFmt)
-    saveas(hFig, outFFmt, 'png');
-end
-
-o_hFig = hFig;
 end
 

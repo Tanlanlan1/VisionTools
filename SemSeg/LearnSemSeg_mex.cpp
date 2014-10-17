@@ -1,17 +1,26 @@
 #include "SemSegUtils.h"
 
 void FitStumpForAllS(
-        struct XMeta &i_x_meta, Mat &i_zs, Mat &i_ws, const mxArray* i_params, 
-        JBMdl& o_mdl, Mat &o_hs){
+        struct XMeta &i_x_meta, Mat<double> &i_zs, Mat<double> &i_ws, const mxArray* i_params, //FIXME: i_params.nCls can make bugs...in the future
+        JBMdl& o_mdl, Mat<double> &o_hs){
     // init
     int featDim = *((int *)mxGetData(mxGetField(i_params, 0, "featDim")));
     int nData = *((int *)mxGetData(mxGetField(i_params, 0, "nData")));
-    int nCls = *((int *)mxGetData(mxGetField(i_params, 0, "nCls")));
+    int nCls_ori = *((int *)mxGetData(mxGetField(i_params, 0, "nCls")));
+    int fBinary = *GetIntPnt(mxGetField(i_params, 0, "binary"), 0, 0);
     double featSelRatio = *((double *)mxGetData(mxGetField(i_params, 0, "featSelRatio")));
     vector<double> featValRange;
     for(int i=0; i<mxGetNumberOfElements(mxGetField(i_params, 0, "featValRange")); ++i)
         featValRange.push_back(*GetDblPnt(mxGetField(i_params, 0, "featValRange"), i, 0));
-    
+    int nCls, nRep;
+    if(fBinary) { //FIXME: duplicated
+        nRep = nCls;
+        nCls = 2;
+    }
+    else{
+        nRep = 1;
+        nCls = nCls_ori;
+    }
     
     // n* = argmin_n Jwse(n)
     double Jwse_best = mxGetInf();
@@ -52,9 +61,6 @@ void FitStumpForAllS(
             #pragma omp parallel for
             for(int fIndInd=0; fIndInd<randFeatInd.size(); ++fIndInd){
                 int fInd = randFeatInd[fIndInd];
-//             for(int fInd=0; fInd<featDim; ++fInd){
-//                 if(((double)(rand()%1000))/1000 > featSelRatio)
-//                     continue;
                 
                 // precalc xs
                 vector<double> xs_tmp(nData);
@@ -112,45 +118,66 @@ void FitStumpForAllS(
     
 }
 
-void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray* i_params, vector<JBMdl> &o_mdls){
+void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray* i_params, Mat<JBMdl> &o_mdls){
     // get params
     int nWeakLearner = *GetIntPnt(mxGetField(i_params, 0, "nWeakLearner"), 0, 0);
     int nData = *GetIntPnt(mxGetField(i_params, 0, "nData"), 0, 0);
-    int nCls = *GetIntPnt(mxGetField(i_params, 0, "nCls"), 0, 0);
+    int nCls_ori = *GetIntPnt(mxGetField(i_params, 0, "nCls"), 0, 0);
     int verbosity = *GetIntPnt(mxGetField(i_params, 0, "verbosity"), 0, 0);
-    
-    // allocate zs, ws    
-    Mat zs(-1, nData, nCls);    
-    Mat ws(1, nData, nCls);
-
-    // allocate mdls
-//     mxArray* mdls = InitMdl(nWeakLearner, nCls);
-    o_mdls.resize(nWeakLearner);
-    // init labels
-    for(int dInd=0; dInd<nData; ++dInd){
-        if((*GetIntPnt(i_ys, dInd, 0)) == 0) // bg
-            continue;
-        zs.GetRef(dInd, (*GetIntPnt(i_ys, dInd, 0))-1) = 1; // zero base
+    int fBinary = *GetIntPnt(mxGetField(i_params, 0, "binary"), 0, 0);
+    int learnBG = *GetIntPnt(mxGetField(i_params, 0, "learnBG"), 0, 0);
+    int nCls, nRep;
+    if(fBinary==1) { //FIXME: duplicated
+        nRep = nCls_ori;
+        nCls = 2;
+        if(learnBG == 0)
+            nRep--;
     }
-
-    // train weak classifiers
-    char buf[1024];
-    Mat hs(0, nData, nCls);
-    for(int m=0; m<nWeakLearner; ++m){
-        if(verbosity>=1){
-            sprintf(buf, "* boosting iter: %d/%d...", m+1, nWeakLearner);
-            cout << buf;
-        }
-        
-        // fit a stump
-        FitStumpForAllS(i_x_meta, zs, ws, i_params, o_mdls[m], hs);
-        // update ws
-        UpdWs(ws, zs, hs);
+    else{
+        nRep = 1;
+        nCls = nCls_ori;
+        // always learn BG
+    }
     
-        if(verbosity >= 1){
-            sprintf(buf, "J_wse = % 12.06f", CalcJwse(ws, zs, hs));
-            cout << buf << endl;
-            fflush(stdout);
+    // allocate mdls
+    o_mdls.Resize(nWeakLearner, nRep);
+    // multiple binary classifiers or one multiclass classifier
+    for(int rInd=0; rInd<nRep; ++rInd){
+        // allocate zs, ws    
+        Mat<double> zs(-1, nData, nCls);    
+        Mat<double> ws(1, nData, nCls);
+        // init labels
+        for(int dInd=0; dInd<nData; ++dInd){
+            if((*GetIntPnt(i_ys, dInd, 0)) == 0) // bg
+                continue;
+            int clsLabel;
+            if(fBinary==1){ //FIXME: not beautiful
+                clsLabel = (int)((*GetIntPnt(i_ys, dInd, 0)) != (rInd+1)) + 1;
+            }else{
+                clsLabel = (*GetIntPnt(i_ys, dInd, 0));
+            }
+            zs.GetRef(dInd, clsLabel-1) = 1; // zero base
+        }
+
+        // train weak classifiers
+        char buf[1024];
+        Mat<double> hs(0, nData, nCls);
+        for(int m=0; m<nWeakLearner; ++m){
+            if(verbosity>=1){
+                sprintf(buf, "* [%dth classifier] boosting iter: %d/%d...", rInd+1, m+1, nWeakLearner);
+                cout << buf;
+            }
+
+            // fit a stump
+            FitStumpForAllS(i_x_meta, zs, ws, i_params, o_mdls.GetRef(m, rInd), hs);
+            // update ws
+            UpdWs(ws, zs, hs);
+
+            if(verbosity >= 1){
+                sprintf(buf, "J_wse = % 12.06f", CalcJwse(ws, zs, hs));
+                cout << buf << endl;
+                fflush(stdout);
+            }
         }
     }
 }
@@ -172,13 +199,12 @@ mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     // struct i_params
     const mxArray* i_params = prhs[2];
     // learn
-    int nWeakLearner = *GetIntPnt(mxGetField(i_params, 0, "nWeakLearner"), 0, 0);
-    int nCls = *GetIntPnt(mxGetField(i_params, 0, "nCls"), 0, 0);
-    vector<JBMdl> mdls;
-    mxArray* o_mdls = InitMdl(nWeakLearner, nCls);
-    
+//     int nWeakLearner = *GetIntPnt(mxGetField(i_params, 0, "nWeakLearner"), 0, 0);
+//     int nCls = *GetIntPnt(mxGetField(i_params, 0, "nCls"), 0, 0);
+    Mat<JBMdl> mdls;
     LearnJointBoost(xMeta, i_ys, i_params, mdls);
-    ConvCMdl2MMdl(mdls, o_mdls);
+    mxArray* o_mdls = 0;
+    ConvCMdl2MMdl(mdls, &o_mdls);
     
     // return
     plhs[0] = o_mdls;

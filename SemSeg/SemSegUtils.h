@@ -24,22 +24,33 @@ void GetRandPerm(int i_start, int i_end, vector<int>& o_list){
     random_shuffle(o_list.begin(), o_list.end());
 }
 
-class Mat{ //FIXME: assume double type and two dimensions
+template<class T>
+class Mat{ //FIXME: assume three dimensions
 private:
-    vector<double> elems_;
+    vector<T> elems_;
     int nRows_;
     int nCols_;
+    int nDeps_;
 public:
-    Mat(double i_initVal, int i_nRows, int i_nCols){
+    Mat(){
+    }
+    Mat(T i_initVal, int i_nRows, int i_nCols, int i_nDeps=1){
         nRows_ = i_nRows;
         nCols_ = i_nCols;
-        elems_.resize(nRows_*nCols_);
+        nDeps_ = i_nDeps;
+        elems_.resize(nRows_*nCols_*nDeps_);
         for(int i=0; i<elems_.size(); ++i)
             elems_[i] = i_initVal;
     }
 public:
-    double &GetRef(int i_r, int i_c){
-        return elems_[i_r + i_c*nRows_];
+    T &GetRef(int i_ind){
+        return elems_[i_ind];
+    }
+    T &GetRef(int i_r, int i_c, int i_d=0){
+        return elems_[i_r + i_c*nRows_ + i_d*nRows_*nCols_];
+    }
+    double Size(){
+        return elems_.size();
     }
     double Size(int i_ind){
         switch(i_ind){
@@ -47,27 +58,34 @@ public:
                 return nRows_;
             case 2:
                 return nCols_;
+            case 3:
+                return nDeps_;
         }
     }
-    
-    
+    void Resize(int i_nr, int i_nc, int i_nd=1){
+        nRows_ = i_nr;
+        nCols_ = i_nc;
+        elems_.resize(i_nr*i_nc*i_nd);
+    }
 };
 
-double* GetDblPnt(const mxArray* i_m, int i_r, int i_c, int i_d){
+// double* GetDblPnt(const mxArray* i_m, int i_r, int i_c, int i_d){
+//     const mwSize *pDims = mxGetDimensions(i_m);
+//     size_t nRows = pDims[0];
+//     size_t nCols = pDims[1];
+//     
+//     double *data = (double*)mxGetData(i_m);
+//     double *ret = &data[i_r + i_c*nRows + i_d*nRows*nCols];
+//     return ret;
+// }
+
+
+double* GetDblPnt(const mxArray* i_m, int i_r, int i_c, int i_d=0){
     const mwSize *pDims = mxGetDimensions(i_m);
     size_t nRows = pDims[0];
     size_t nCols = pDims[1];
-    
     double *data = (double*)mxGetData(i_m);
-    double *ret = &data[i_r + i_c*nRows + i_d*nRows*nCols];
-    return ret;
-}
-
-
-double* GetDblPnt(const mxArray* i_m, int i_r, int i_c){
-    size_t nRows = mxGetM(i_m);
-    double *data = (double*)mxGetData(i_m);
-    double *ret = &data[i_r + i_c*nRows];
+    double *ret = &data[i_r + i_c*nRows +i_d*nRows*nCols];
     return ret;
 }
 
@@ -87,7 +105,7 @@ void SetDblVal(mxArray* io_m, double i_val)
             (*GetDblPnt(io_m, r, c)) = i_val;
 }
 
-void UpdWs(Mat &io_ws, Mat &i_zs, Mat &i_hs){
+void UpdWs(Mat<double> &io_ws, Mat<double> &i_zs, Mat<double> &i_hs){
     // ws = ws.*exp(-zs.*hs);
     int nRows = io_ws.Size(1);
     int nCols = io_ws.Size(2);
@@ -98,6 +116,7 @@ void UpdWs(Mat &io_ws, Mat &i_zs, Mat &i_hs){
                     io_ws.GetRef(r, c)* // ws
                     exp(-i_zs.GetRef(r, c)*i_hs.GetRef(r, c)); //exp(-zs.*hs)
 }
+
 
 class JBMdl{
 public:
@@ -123,20 +142,47 @@ public:
         S = i_S;
     }
 };
-
-void ConvMat2MMat(Mat& i_mat, const mxArray* o_mat){
-    const mwSize *pDims = mxGetDimensions(o_mat);
-    size_t nRows = pDims[0];
-    size_t nCols = pDims[1];
-    for(int rInd=0; rInd<nRows; ++rInd)
-        for(int cInd=0; cInd<nCols; ++cInd)
-            (*GetDblPnt(o_mat, rInd, cInd)) = i_mat.GetRef(rInd, cInd);
+mxArray* InitMdl(int i_n, int i_nClsf, double i_nCls){
+    const char * fnames[] = {"a", "b", "f", "theta", "kc", "S"};
+    mxArray *o_mdl = mxCreateStructMatrix(i_n, i_nClsf, 6, fnames);
+    // set fields
+    for(int i=0; i<i_n*i_nClsf; ++i){
+        mxSetField(o_mdl, i, "a", mxCreateNumericMatrix(1, 1, mxDOUBLE_CLASS, mxREAL));
+        mxSetField(o_mdl, i, "b", mxCreateNumericMatrix(1, 1, mxDOUBLE_CLASS, mxREAL));
+        mxSetField(o_mdl, i, "f", mxCreateNumericMatrix(1, 1, mxINT32_CLASS, mxREAL));
+        mxSetField(o_mdl, i, "theta", mxCreateNumericMatrix(1, 1, mxDOUBLE_CLASS, mxREAL));
+        mxSetField(o_mdl, i, "kc", mxCreateNumericMatrix(i_nCls, 1, mxDOUBLE_CLASS, mxREAL));
+        mxSetField(o_mdl, i, "S", mxCreateNumericMatrix(i_nCls, 1, mxINT32_CLASS, mxREAL));
+    }
+    return o_mdl;
 }
 
-void ConvMMdl2CMdl(const mxArray* i_mdls, vector<struct JBMdl> &o_mdls){
-    int nMdls = mxGetNumberOfElements(i_mdls);
-    for(int mInd=0; mInd<nMdls; ++mInd){
+
+void ConvMat2MMat(Mat<double>& i_mat, const mxArray* o_mat){
+    const mwSize *pDims = mxGetDimensions(o_mat);
+    mwSize nDim = mxGetNumberOfDimensions(o_mat);
+    assert(nDim == 3 || nDim == 2);
+    size_t nRows = pDims[0];
+    size_t nCols = pDims[1];
+    size_t nDeps;
+    if(nDim == 2)
+        nDeps = 1;
+    else
+        nDeps = pDims[2];
         
+    
+    
+    for(int rInd=0; rInd<nRows; ++rInd)
+        for(int cInd=0; cInd<nCols; ++cInd)
+            for(int dInd=0; dInd<nDeps; ++dInd)
+                (*GetDblPnt(o_mat, rInd, cInd, dInd)) = i_mat.GetRef(rInd, cInd, dInd);
+}
+
+void ConvMMdl2CMdl(const mxArray* i_mdls, Mat<JBMdl> &o_mdls){
+    const mwSize *dims = mxGetDimensions(i_mdls);
+    o_mdls.Resize(dims[0], dims[1]);
+    
+    for(int mInd=0; mInd<dims[0]*dims[1]; ++mInd){
         JBMdl mdl;
         mdl.a = *GetDblPnt(mxGetField(i_mdls, mInd, "a"), 0, 0);
         mdl.b = *GetDblPnt(mxGetField(i_mdls, mInd, "b"), 0, 0);
@@ -149,23 +195,49 @@ void ConvMMdl2CMdl(const mxArray* i_mdls, vector<struct JBMdl> &o_mdls){
             mdl.S.push_back(*GetIntPnt(S, cInd, 0));
         }
                 
-        o_mdls.push_back(mdl);
+        o_mdls.GetRef(mInd) = mdl;
     }
+    
+//     int nMdls = mxGetNumberOfElements(i_mdls);
+//     for(int mInd=0; mInd<nMdls; ++mInd){
+//         
+//         JBMdl mdl;
+//         mdl.a = *GetDblPnt(mxGetField(i_mdls, mInd, "a"), 0, 0);
+//         mdl.b = *GetDblPnt(mxGetField(i_mdls, mInd, "b"), 0, 0);
+//         mdl.f = *GetIntPnt(mxGetField(i_mdls, mInd, "f"), 0, 0);
+//         mdl.theta = *GetDblPnt(mxGetField(i_mdls, mInd, "theta"), 0, 0);
+//         mxArray* kc = mxGetField(i_mdls, mInd, "kc");
+//         mxArray* S = mxGetField(i_mdls, mInd, "S");
+//         for(int cInd=0; cInd<mxGetNumberOfElements(kc); ++cInd){
+//             mdl.kc.push_back(*GetDblPnt(kc, cInd, 0));
+//             mdl.S.push_back(*GetIntPnt(S, cInd, 0));
+//         }
+//                 
+//         o_mdls.push_back(mdl);
+//     }
 }
 
-void ConvCMdl2MMdl(vector<struct JBMdl> &i_mdls, mxArray* o_mdls){
-    int nMdls = i_mdls.size();
-    for(int mInd=0; mInd<nMdls; ++mInd){
-        *GetDblPnt(mxGetField(o_mdls, mInd, "a"), 0, 0) = i_mdls[mInd].a;
-        *GetDblPnt(mxGetField(o_mdls, mInd, "b"), 0, 0) = i_mdls[mInd].b;
-        *GetIntPnt(mxGetField(o_mdls, mInd, "f"), 0, 0) = i_mdls[mInd].f;
-        *GetDblPnt(mxGetField(o_mdls, mInd, "theta"), 0, 0) = i_mdls[mInd].theta;
+void ConvCMdl2MMdl(Mat<JBMdl> &i_mdls, mxArray** o_mdls){
+    int nWeakLearner = i_mdls.Size(1);
+    int nClsf = i_mdls.Size(2);
+    if(*o_mdls == 0){
         
-        mxArray* kc = mxGetField(o_mdls, mInd, "kc");
-        mxArray* S = mxGetField(o_mdls, mInd, "S");
-        for(int cInd=0; cInd<i_mdls[mInd].kc.size(); ++cInd){
-            *GetDblPnt(kc, cInd, 0) = i_mdls[mInd].kc[cInd];
-            *GetIntPnt(S, cInd, 0) = i_mdls[mInd].S[cInd];
+        int nCls = i_mdls.GetRef(0, 0).S.size();
+        *o_mdls = InitMdl(nWeakLearner, nClsf, nCls);
+    }
+    
+    int nMdls = i_mdls.Size();
+    for(int mInd=0; mInd<nMdls; ++mInd){
+        *GetDblPnt(mxGetField(*o_mdls, mInd, "a"), 0, 0) = i_mdls.GetRef(mInd).a;
+        *GetDblPnt(mxGetField(*o_mdls, mInd, "b"), 0, 0) = i_mdls.GetRef(mInd).b;
+        *GetIntPnt(mxGetField(*o_mdls, mInd, "f"), 0, 0) = i_mdls.GetRef(mInd).f;
+        *GetDblPnt(mxGetField(*o_mdls, mInd, "theta"), 0, 0) = i_mdls.GetRef(mInd).theta;
+        
+        mxArray* kc = mxGetField(*o_mdls, mInd, "kc");
+        mxArray* S = mxGetField(*o_mdls, mInd, "S");
+        for(int cInd=0; cInd<i_mdls.GetRef(mInd).kc.size(); ++cInd){
+            *GetDblPnt(kc, cInd, 0) = i_mdls.GetRef(mInd).kc[cInd];
+            *GetIntPnt(S, cInd, 0) = i_mdls.GetRef(mInd).S[cInd];
         }
     }
 }
@@ -252,21 +324,6 @@ void ConvMXMeta2CXMeta(const mxArray* i_x_meta, struct XMeta &o_x_meta){
 //             o_x_meta.ixys.push_back(*GetIntPnt(ixys, i, j));
         }
     }
-}
-
-mxArray* InitMdl(int i_n, double i_nCls){
-    const char * fnames[] = {"a", "b", "f", "theta", "kc", "S"};
-    mxArray *o_mdl = mxCreateStructMatrix(i_n, 1, 6, fnames);
-    // set fields
-    for(int i=0; i<i_n; ++i){
-        mxSetField(o_mdl, i, "a", mxCreateNumericMatrix(1, 1, mxDOUBLE_CLASS, mxREAL));
-        mxSetField(o_mdl, i, "b", mxCreateNumericMatrix(1, 1, mxDOUBLE_CLASS, mxREAL));
-        mxSetField(o_mdl, i, "f", mxCreateNumericMatrix(1, 1, mxINT32_CLASS, mxREAL));
-        mxSetField(o_mdl, i, "theta", mxCreateNumericMatrix(1, 1, mxDOUBLE_CLASS, mxREAL));
-        mxSetField(o_mdl, i, "kc", mxCreateNumericMatrix(i_nCls, 1, mxDOUBLE_CLASS, mxREAL));
-        mxSetField(o_mdl, i, "S", mxCreateNumericMatrix(i_nCls, 1, mxINT32_CLASS, mxREAL));
-    }
-    return o_mdl;
 }
 
 void SetMdlField(mxArray* o_mdl, double a, double b, int f, double theta, vector<double> &kc, vector<int> &S){
@@ -357,7 +414,7 @@ double Geth_th(double x, double a, double b, double theta, double kc, int S){
 }
 
 // void Geths(Mat &o_hs, int i_nData, int i_nCls, vector <double> &i_xs, const mxArray *i_mdl, int i_mInd){
-void Geths(Mat &o_hs, int i_nData, int i_nCls, vector <double> &i_xs, JBMdl &i_mdl){
+void Geths(Mat<double> &o_hs, int i_nData, int i_nCls, vector <double> &i_xs, JBMdl &i_mdl){
 //     mxArray* a_f = mxGetField(i_mdl, i_mInd, "a");
 //     mxArray* b_f = mxGetField(i_mdl, i_mInd, "b");
 //     mxArray* theta_f = mxGetField(i_mdl, i_mInd, "theta");
@@ -371,7 +428,7 @@ void Geths(Mat &o_hs, int i_nData, int i_nCls, vector <double> &i_xs, JBMdl &i_m
     }
 }
 
-double CalcJwse(Mat &i_ws, Mat &i_zs, Mat &i_hs){
+double CalcJwse(Mat<double> &i_ws, Mat<double> &i_zs, Mat<double> &i_hs){
     // o_cost = sum(sum(i_ws.*(i_zs - i_hs).^2));
     int nRows = i_ws.Size(1);
     int nCols = i_ws.Size(2);
@@ -384,7 +441,7 @@ double CalcJwse(Mat &i_ws, Mat &i_zs, Mat &i_hs){
     return ret;
 }
 
-double CalcJwse_ts(Mat &i_ws, Mat &i_zs, vector<double> &i_xs, double a, double b, int f, double theta, vector<double> &kc, vector<int> &S){
+double CalcJwse_ts(Mat<double> &i_ws, Mat<double> &i_zs, vector<double> &i_xs, double a, double b, int f, double theta, vector<double> &kc, vector<int> &S){
     // o_cost = sum(sum(i_ws.*(i_zs - i_hs).^2));
     size_t nRows = i_ws.Size(1);
     size_t nCols = i_ws.Size(2);
@@ -401,7 +458,7 @@ double CalcJwse_ts(Mat &i_ws, Mat &i_zs, vector<double> &i_xs, double a, double 
     return ret;
 }
 
-double CalcJwse(Mat &i_ws, Mat &i_zs, vector<double> &i_xs, JBMdl& i_JBMdl){
+double CalcJwse(Mat<double> &i_ws, Mat<double> &i_zs, vector<double> &i_xs, JBMdl& i_JBMdl){
     // o_cost = sum(sum(i_ws.*(i_zs - i_hs).^2));
     size_t nRows = i_ws.Size(1);
     size_t nCols = i_ws.Size(2);
