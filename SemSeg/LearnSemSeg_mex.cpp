@@ -195,6 +195,7 @@ void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray*
     // get params
     int nWeakLearner = *GetIntPnt(mxGetField(i_params, 0, "nWeakLearner"), 0, 0);
     int nData = *GetIntPnt(mxGetField(i_params, 0, "nData"), 0, 0);
+    int nPerClsSample = *GetIntPnt(mxGetField(i_params, 0, "nPerClsSample"), 0, 0);
     int nCls_ori = *GetIntPnt(mxGetField(i_params, 0, "nCls"), 0, 0);
     int verbosity = *GetIntPnt(mxGetField(i_params, 0, "verbosity"), 0, 0);
     int fBinary = *GetIntPnt(mxGetField(i_params, 0, "binary"), 0, 0);
@@ -219,6 +220,28 @@ void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray*
         // allocate zs, ws    
         Mat<double> zs(-1, nData, nCls);    
         Mat<double> ws(1, nData, nCls);
+        
+        // init weight
+        if(fBinary==1){
+            // balance negative labels
+            int nPos = nPerClsSample; //FIXME: assumes positive data is smaller
+            int nNeg = nData - nPos;
+            assert(nPos < nNeg);
+            int dInd = -1;
+            while(nNeg!=nPos){
+                dInd = (dInd+1)%nData;
+                
+                int clsLabel = (int)((*GetIntPnt(i_ys, dInd, 0)) != (rInd+1)) + 1;
+                if(ws.GetRef(dInd, clsLabel-1) == 0)
+                    continue;
+                if(clsLabel == 2 && rand()%2 == 0){ // negative
+                    ws.GetRef(dInd, clsLabel-1) = 0; // zero base
+                    nNeg--;
+                }
+            }
+            assert(nPos == nNeg);
+        }
+        
         // init labels
         for(int dInd=0; dInd<nData; ++dInd){
             if((*GetIntPnt(i_ys, dInd, 0)) == 0) // bg
@@ -230,7 +253,12 @@ void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray*
                 clsLabel = (*GetIntPnt(i_ys, dInd, 0));
             }
             zs.GetRef(dInd, clsLabel-1) = 1; // zero base
-        }
+        }   
+        
+        
+        
+        
+        
 
         // train weak classifiers
         char buf[1024];
@@ -282,8 +310,6 @@ mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     // struct i_params
     const mxArray* i_params = prhs[2];
     // learn
-//     int nWeakLearner = *GetIntPnt(mxGetField(i_params, 0, "nWeakLearner"), 0, 0);
-//     int nCls = *GetIntPnt(mxGetField(i_params, 0, "nCls"), 0, 0);
     Mat<JBMdl> mdls;
     LearnJointBoost(xMeta, i_ys, i_params, mdls);
     mxArray* o_mdls = 0;

@@ -50,6 +50,7 @@ end
 if ~isfield(i_params, 'verbosity')
     i_params.verbosity = 0;
 end
+i_params.classifier.nPerClsSample = i_params.nPerClsSample;
 
 nImgs = numel(i_imgs);
 % samplingRatio = i_params.feat.samplingRatio; %%FIXME: mask? saplingratio? duplicated

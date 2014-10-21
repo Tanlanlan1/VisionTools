@@ -5,6 +5,9 @@ addpath(genpath('../Superpixel')); %%FIXME
 addpath(genpath('../JointBoost')); %%FIXME
 addpath(genpath('../libMatlabHelper')); %%FIXME
 close all;
+if matlabpool('size') == 0
+    matlabpool open;
+end
 
 annotate = true;
 saveAnnotation = true;
@@ -29,7 +32,7 @@ TBParams = struct(...
     'samplingRatio', 0.1, ...
     'nTexton', 64, ...
     'nPart', 100, ...
-    'LOFilterWH', [101; 101], ...%%FIXME: adoptive!!
+    'LOFilterWH', [201; 201], ...%%FIXME: adoptive!!
     'verbosity', verbosity);
 
 % JointBoost paramsimg1

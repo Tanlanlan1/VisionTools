@@ -139,7 +139,7 @@ img = rgb2gray(i_img);
 Fs = makeLMfilters;
 img_pad = padarray(img, [(size(Fs, 1)-1)/2 (size(Fs, 2)-1)/2], 'symmetric', 'both');
 responses = zeros(size(img, 1), size(img, 2), size(Fs, 3));
-parfor fInd=1:size(Fs, 3)
+for fInd=1:size(Fs, 3)
     responses(:, :, fInd) = conv2(img_pad, Fs(:, :, fInd), 'valid'); % symetric filters, so don't need to flip
 end
 o_feat = responses;
