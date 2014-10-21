@@ -39,7 +39,7 @@ addpath(genpath([thisFilePath '/../Feature'])); %%FIXME
 addpath(genpath([thisFilePath '/../JointBoost'])); %%FIXME
 
 assert(isfield(i_imgs, 'img'));
-assert(numel(i_imgs) == 1);
+assert(size(i_imgs, 1) == 1);
 
 if ~isfield(i_params, 'pad')
     i_params.pad = false;
@@ -61,9 +61,7 @@ nCls = i_params.classifier.nCls;
 
 % buid meta data for FeatCBFunc and labels
 LOFilterWH_half = (i_params.feat.LOFilterWH-1)/2; 
-% nData_approx = round(nImgs*size(i_imgs(1).img, 2)*size(i_imgs(1).img, 1)*samplingRatio); %%FIXME: assume same sized images
 nData_approx = round(nImgs*size(i_imgs(1).img, 2)*size(i_imgs(1).img, 1)); %%FIXME: assume same sized images
-% step = round(1/samplingRatio);
 
 % pad
 if i_params.pad
@@ -78,6 +76,7 @@ if i_params.pad
 end
 assert(size(i_labels(1).cls, 1) == size(i_imgs(1).img, 1));
 assert(size(i_labels(1).cls, 2) == size(i_imgs(1).img, 2));
+
 % extract Texton
 [feats_texton, tbParams] = GetDenseFeature(i_imgs, {'Texton'}, tbParams); %%FIXME: sampling points are different with JointBoost
 

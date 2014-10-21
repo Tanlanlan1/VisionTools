@@ -73,7 +73,7 @@ if annotate
 %     [~, supsub2] = GetSuperpixel( img2, 'SLIC');
 %     imgs = struct('img', {img1, img2}, 'superpixels_sub', {supsub1, supsub2});
     imgs = struct('img', {img1, img2});
-    labels = struct('cls', {zeros(size(img1, 1), size(img1, 2)), []});
+    labels = struct('cls', {zeros(size(img1, 1), size(img1, 2)), []}, 'depth', []);
     for rInd=1:size(rects, 1)
         rect = rects(rInd, :);
         mask = poly2mask(...
@@ -110,25 +110,14 @@ SemSegParams = struct(...
     'feat', TBParams, ...
     'nPerClsSample', nPerClsSample, ...
     'classifier', JBParams, ...
+    'scales', 0.5:0.5:2, ...
     'verbosity', 1);
 
 %% learn
-[mdls, params_learn] = LearnSemSeg(imgs(trainInd), labels(trainInd), SemSegParams);
+[mdls, params_learn] = LearnSemSeg(imgs(trainInd), labels(trainInd), SemSegParams); %%FIXME: learning in scale space
 
 %% predict
-% [cls, vals, params_pred] = PredSemSeg(imgs(testInd), mdls, params_learn);
-scales = 1:0.5:2;
-% scales = 1;
-imgs_new = struct('img', [], 'scale', []);
-imgs_test = imgs(testInd);
-for iInd=1:numel(imgs_test)
-    for sInd=1:numel(scales)
-        imgs_new(iInd, sInd).img = imresize(imgs_test(iInd).img, scales(sInd));
-        imgs_new(iInd, sInd).scale = scales(sInd);
-    end
-end
-[pred, params_pred] = PredSemSeg(imgs_new, mdls, params_learn);
-
+[pred, params_pred] = PredSemSeg(imgs(testInd), mdls, params_learn);
 
 %% show
 showPred( pred, params_pred, imgs(trainInd).img, labels(trainInd), imgs(testInd).img );

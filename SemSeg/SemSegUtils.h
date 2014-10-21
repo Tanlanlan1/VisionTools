@@ -441,6 +441,20 @@ double CalcJwse(Mat<double> &i_ws, Mat<double> &i_zs, Mat<double> &i_hs){
     return ret;
 }
 
+double CalcJwse_binary(Mat<double> &i_ws, Mat<double> &i_zs, Mat<double> &i_hs){
+    // o_cost = sum(sum(i_ws.*(i_zs - i_hs).^2));
+    int nRows = i_ws.Size(1);
+    int nCols = 1;
+    double ret = 0;
+    for(int r=0; r<nRows; ++r)
+        for(int c=0; c<nCols; ++c){
+            ret += i_ws.GetRef(r, c)* //ws
+                    pow(i_zs.GetRef(r, c)-i_hs.GetRef(r, c), 2.0); //(zs-hs).^2
+        }
+    return ret;
+}
+
+
 double CalcJwse_ts(Mat<double> &i_ws, Mat<double> &i_zs, vector<double> &i_xs, double a, double b, int f, double theta, vector<double> &kc, vector<int> &S){
     // o_cost = sum(sum(i_ws.*(i_zs - i_hs).^2));
     size_t nRows = i_ws.Size(1);
@@ -472,6 +486,24 @@ double CalcJwse(Mat<double> &i_ws, Mat<double> &i_zs, vector<double> &i_xs, JBMd
             ret += i_ws.GetRef(dInd, cInd)* //ws
                     pow(i_zs.GetRef(dInd, cInd)-h, 2.0); //(zs-hs).^2
         }
+    return ret;
+}
+
+double CalcJwse_binary(Mat<double> &i_ws, Mat<double> &i_zs, vector<double> &i_xs, JBMdl& i_JBMdl){
+    // o_cost = sum(sum(i_ws.*(i_zs - i_hs).^2));
+    size_t nRows = i_ws.Size(1);
+    int cInd = 0; // binary
+    double ret = 0;
+    for(int dInd=0; dInd<nRows; ++dInd){
+        
+        
+        // calc h
+        double h = Geth(i_xs[dInd], cInd, i_JBMdl);
+
+        // i_ws.*(i_zs - i_hs).^2
+        ret += i_ws.GetRef(dInd, cInd)* //ws
+                pow(i_zs.GetRef(dInd, cInd)-h, 2.0); //(zs-hs).^2
+    }
     return ret;
 }
 

@@ -139,7 +139,7 @@ img = rgb2gray(i_img);
 Fs = makeLMfilters;
 img_pad = padarray(img, [(size(Fs, 1)-1)/2 (size(Fs, 2)-1)/2], 'symmetric', 'both');
 responses = zeros(size(img, 1), size(img, 2), size(Fs, 3));
-for fInd=1:size(Fs, 3)
+parfor fInd=1:size(Fs, 3)
     responses(:, :, fInd) = conv2(img_pad, Fs(:, :, fInd), 'valid'); % symetric filters, so don't need to flip
 end
 o_feat = responses;
@@ -185,16 +185,17 @@ nImgs = numel(i_imgs);
 %     end
 % end
 
+feats = i_imgs;
 %% obtain texture
 if verbosity >= 1
     disp('* obtain texture information');
 end
-% textures = cell(nImgs, 1);
+
 for iInd=1:nImgs
     if ~isfield(i_imgs(iInd), 'Texture')
-        [i_imgs(iInd).Texture, fb] = GetTextureLMFeature(i_imgs(iInd).img);
+        [feats(iInd).Texture, fb] = GetTextureLMFeature(feats(iInd).img);
         % add colors
-        i_imgs(iInd).Texture = cat(3, i_imgs(iInd).Texture, GetRGBDenseFeature(i_imgs(iInd).img));
+        feats(iInd).Texture = cat(3, feats(iInd).Texture, GetRGBDenseFeature(feats(iInd).img));
     end
 end
 
@@ -205,7 +206,7 @@ if ~isfield(i_params, 'textons') || isempty(i_params.textons)
     end
     data = cell(1, nImgs);
     for iInd=1:nImgs
-        curTexture = i_imgs(iInd).Texture;
+        curTexture = feats(iInd).Texture;
         data_is = reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])';
         step = round(1/samplingRatio);
         data{iInd} = data_is(:, 1:step:end);
@@ -227,7 +228,7 @@ end
 
 if ~isfield(i_imgs, 'Texton')
     for iInd=1:nImgs
-        curTexture = i_imgs(iInd).Texture;
+        curTexture = feats(iInd).Texture;
         curTexture_q = reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])';
 
         [IND, DIST] = vl_kdtreequery(kdtree, textons, curTexture_q, 'numNeighbors', nNN);
@@ -237,7 +238,7 @@ if ~isfield(i_imgs, 'Texton')
             linInd = sub2ind(size(textonImg), rows(:), cols(:), double(IND(nnInd, :))');
             textonImg(linInd) = exp(-DIST(nnInd, :));
         end
-        i_imgs(iInd).Texton = textonImg;
+        feats(iInd).Texton = textonImg;
     end
 end
 
@@ -258,7 +259,7 @@ if verbosity >= 2
 
     % texton feature
     riInd = randi(nImgs, 1);
-    curImg = i_imgs(riInd).img;
+    curImg = feats(riInd).img;
     [~ , curFeat_max] = max(feats(riInd).feat, [], 3);
     figure(76234); clf;
     subplot(1, 2, 1); imshow(curImg);
@@ -269,7 +270,7 @@ end
 % if ~cellFlag
 %     feat = cell2mat(feat);
 % end
-o_feats = i_imgs;
+o_feats = feats;
 o_params = i_params;
 o_params.textons = textons;
 o_params.kdtree = kdtree;

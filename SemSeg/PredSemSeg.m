@@ -33,6 +33,22 @@ function [ o_pred, o_params, o_feats ] = PredSemSeg( i_imgs, i_mdls, i_params )
 %
 
 %% init
+if ~isfield(i_params, 'scales')
+    i_params.scales = 1;
+end
+
+% bulid a scale space
+imgs_test_scale = struct('img', [], 'scale', []);
+imgs_test = i_imgs;
+for iInd=1:numel(imgs_test)
+    for sInd=1:numel(i_params.scales)
+        imgs_test_scale(iInd, sInd).img = imresize(imgs_test(iInd).img, i_params.scales(sInd));
+        imgs_test_scale(iInd, sInd).scale = i_params.scales(sInd);
+    end
+end
+i_imgs = imgs_test_scale;
+
+%%
 assert(size(i_imgs, 1) == 1); %%FIXME: assume only one image with different scale images
 nImgs = numel(i_imgs);
 imgWHs = zeros(2, nImgs);
@@ -90,7 +106,7 @@ fprintf('* Running time PredSemSeg_mex: %s sec.\n', num2str(toc(mexTID)));
 %% max_s
 assert(size(i_imgs, 1) == 1); %%FIXME: assume only one image with different scale images
 iInd = 1;
-refImgInd = [i_imgs(iInd, :).scale] == 1;
+[~, refImgInd] = min(abs([i_imgs(iInd, :).scale] - 1));
 imgWH_s1 = [size(i_imgs(iInd, refImgInd).img, 2); size(i_imgs(iInd, refImgInd).img, 1)];
 
 pred = struct('dist', [], 'cls', []);
@@ -98,12 +114,12 @@ for cfInd=1:size(dist, 3)
 
     dist_max_s = zeros(imgWH_s1(2), imgWH_s1(1), size(dist, 2));
     for iInd=1:size(i_imgs, 1)
-        refImgInd = [i_imgs(iInd, :).scale] == 1;
-        assert(~isempty(refImgInd));
-        imgWH_s1 = [size(i_imgs(iInd, refImgInd).img, 2); size(i_imgs(iInd, refImgInd).img, 1)];
+%         refImgInd = [i_imgs(iInd, :).scale] == 1;
+%         assert(~isempty(refImgInd));
+%         imgWH_s1 = [size(i_imgs(iInd, refImgInd).img, 2); size(i_imgs(iInd, refImgInd).img, 1)];
         dist_s = zeros(imgWH_s1(2), imgWH_s1(1), size(i_imgs, 2), size(dist, 2));
         for sInd=1:size(i_imgs, 2)
-            curScale = i_imgs(iInd, sInd).scale;
+%             curScale = i_imgs(iInd, sInd).scale;
             for cInd=1:size(dist, 2)
                 iInd_lin = sub2ind(size(i_imgs), iInd, sInd);
                 sampleMask = sampleMasks(iInd, sInd).mask;
@@ -119,6 +135,13 @@ for cfInd=1:size(dist, 3)
     end
     pred(cfInd).dist = dist_max_s;
     [~, pred(cfInd).cls] = max(dist_max_s, [], 3);
+    
+%     if i_params.classifier.binary == 1
+%         pred(cfInd).cls = dist_max_s(:, :, 1)>0 + 2*(dist_max_s(:, :, 1)<=0);
+%     else
+%         [~, pred(cfInd).cls] = max(dist_max_s, [], 3); %%FIXME: how can we handle background??
+%     end
+    
 end
 
 % o_dist = repmat(zeros(size(sampleMask)), [1 1 size(dist, 2)]);

@@ -1,5 +1,80 @@
 #include "SemSegUtils.h"
 
+void FitStump_binary(
+        struct XMeta &i_x_meta, Mat<double> &i_zs, Mat<double> &i_ws, const mxArray* i_params, //FIXME: i_params.nCls can make bugs...in the future
+        JBMdl& o_mdl, Mat<double> &o_hs){
+    // init
+    int featDim = *((int *)mxGetData(mxGetField(i_params, 0, "featDim")));
+    int nData = *((int *)mxGetData(mxGetField(i_params, 0, "nData")));
+    int nCls_ori = *((int *)mxGetData(mxGetField(i_params, 0, "nCls")));
+    int fBinary = *GetIntPnt(mxGetField(i_params, 0, "binary"), 0, 0);
+    double featSelRatio = *((double *)mxGetData(mxGetField(i_params, 0, "featSelRatio")));
+    vector<double> featValRange;
+    for(int i=0; i<mxGetNumberOfElements(mxGetField(i_params, 0, "featValRange")); ++i)
+        featValRange.push_back(*GetDblPnt(mxGetField(i_params, 0, "featValRange"), i, 0));
+    int nCls = 2;
+    
+    // fit a stump. Find the best weaklearner given an S
+    
+    vector<int> S(2); S[0] = 1; // dummy
+    vector<int> randFeatInd;
+    GetRandPerm(0, featDim-1, randFeatInd);
+    randFeatInd.resize(round(featDim*featSelRatio));
+    vector<double> kc_hat(nCls); // dummy
+    
+    double Jwse_S_best = mxGetInf();
+    JBMdl mdl_S_best;
+    #pragma omp parallel for
+    for(int fIndInd=0; fIndInd<randFeatInd.size(); ++fIndInd){
+        int fInd = randFeatInd[fIndInd];
+
+        // precalc xs
+        vector<double> xs_tmp(nData);
+        for(int dInd=0; dInd<nData; ++dInd){ 
+            xs_tmp[dInd] = GetithTextonBoost(dInd, fInd, i_x_meta);
+        }
+
+        for(int tInd=0; tInd<featValRange.size(); ++tInd){
+            double curTheta = featValRange[tInd];
+
+            // estimate a and b
+            double n_a = 0, dn_a = 1e-32, n_b = 0, dn_b = 1e-32;
+            for(int cInd=0; cInd<nCls; ++cInd){
+                if(S[cInd] == 0)
+                    continue;
+                for(int dInd=0; dInd<nData; ++dInd){
+                    n_a += i_ws.GetRef(dInd, cInd) * i_zs.GetRef(dInd, cInd) * (xs_tmp[dInd]>curTheta);
+                    dn_a += i_ws.GetRef(dInd, cInd) * (xs_tmp[dInd]>curTheta);
+                    n_b += i_ws.GetRef(dInd, cInd) * i_zs.GetRef(dInd, cInd) * (xs_tmp[dInd]<=curTheta);
+                    dn_b += i_ws.GetRef(dInd, cInd) * (xs_tmp[dInd]<=curTheta);
+                }
+            }
+            double a_hat = n_a/dn_a;
+            double b_hat = n_b/dn_b;
+
+            // calc cost
+            JBMdl mdl_tmp(a_hat, b_hat, fInd, curTheta, kc_hat, S);
+            double Jwse_S_f_t = CalcJwse_binary(i_ws, i_zs, xs_tmp, mdl_tmp);
+
+            // keep the best and free memory
+            #pragma omp critical
+            {
+            if(Jwse_S_best > Jwse_S_f_t){
+                Jwse_S_best = Jwse_S_f_t;
+                mdl_S_best = mdl_tmp;
+            }
+            }
+        }
+    }    
+    
+    // free memory and return
+    o_mdl = mdl_S_best;
+    vector<double> xs_tmp(nData);
+    for(int dInd=0; dInd<nData; ++dInd)
+        xs_tmp[dInd] = GetithTextonBoost(dInd, o_mdl.f, i_x_meta);
+    Geths(o_hs, nData, nCls, xs_tmp, o_mdl);
+}
+
 void FitStumpForAllS(
         struct XMeta &i_x_meta, Mat<double> &i_zs, Mat<double> &i_ws, const mxArray* i_params, //FIXME: i_params.nCls can make bugs...in the future
         JBMdl& o_mdl, Mat<double> &o_hs){
@@ -12,13 +87,11 @@ void FitStumpForAllS(
     vector<double> featValRange;
     for(int i=0; i<mxGetNumberOfElements(mxGetField(i_params, 0, "featValRange")); ++i)
         featValRange.push_back(*GetDblPnt(mxGetField(i_params, 0, "featValRange"), i, 0));
-    int nCls, nRep;
+    int nCls;
     if(fBinary) { //FIXME: duplicated
-        nRep = nCls;
         nCls = 2;
     }
     else{
-        nRep = 1;
         nCls = nCls_ori;
     }
     
@@ -169,15 +242,25 @@ void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray*
             }
 
             // fit a stump
-            FitStumpForAllS(i_x_meta, zs, ws, i_params, o_mdls.GetRef(m, rInd), hs);
+            if(fBinary == 1){
+                FitStump_binary(i_x_meta, zs, ws, i_params, o_mdls.GetRef(m, rInd), hs);
+                if(verbosity >= 1){
+                    sprintf(buf, "J_wse = % 12.06f", CalcJwse_binary(ws, zs, hs));
+                    cout << buf << endl;
+                    fflush(stdout);
+                }
+            }else{
+                FitStumpForAllS(i_x_meta, zs, ws, i_params, o_mdls.GetRef(m, rInd), hs);
+                if(verbosity >= 1){
+                    sprintf(buf, "J_wse = % 12.06f", CalcJwse(ws, zs, hs));
+                    cout << buf << endl;
+                    fflush(stdout);
+                }
+            }
             // update ws
             UpdWs(ws, zs, hs);
 
-            if(verbosity >= 1){
-                sprintf(buf, "J_wse = % 12.06f", CalcJwse(ws, zs, hs));
-                cout << buf << endl;
-                fflush(stdout);
-            }
+            
         }
     }
 }
