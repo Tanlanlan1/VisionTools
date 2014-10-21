@@ -86,15 +86,7 @@ label = zeros(nData_approx, 1);
 startInd = 1;
 feats_textInt = [];
 for iInd=1:nImgs
-%     % pad
-%     if i_params.pad
-%         
-%         curImg = struct('img', padarray(i_imgs(iInd).img, [LOFilterWH_half(2) LOFilterWH_half(1) 0], 'symmetric', 'both'));
-%         curLabel = struct('cls', padarray(i_labels(iInd).cls, [LOFilterWH_half(2) LOFilterWH_half(1) 0], 'symmetric', 'both'));
-%     else
-%         curImg = struct('img', i_imgs(iInd).img);
-%         curLabel = struct('cls', i_labels(iInd).cls);
-%     end
+
     curImg = feats_texton(iInd);
     curLabel = i_labels(iInd);
     imgWH = [size(curImg.img, 2); size(curImg.img, 1)];

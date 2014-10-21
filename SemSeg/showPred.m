@@ -23,7 +23,7 @@ for cfInd=1:numel(pred)
     %% show
     figure(hFig); clf;
     lineCols = colormap(lines);
-    subplot_tight(1, 2, 1);
+    subplot_tight(2, 2, 1);
     imshow(trImg);
     hold on;
     layerImg = zeros(size(trImg));
@@ -39,7 +39,7 @@ for cfInd=1:numel(pred)
     hold off;
     title('training regions');
 
-    subplot_tight(1, 2, 2);
+    subplot_tight(2, 2, 2);
     imshow(teImg);
     hold on;
     layerImg = zeros(size(teImg));
@@ -60,6 +60,10 @@ for cfInd=1:numel(pred)
     hold off;
     title('Predicted regions');
 
+    % show bbs
+    subplot_tight(2, 2, 3);
+    showbbs(teImg, pred(cfInd).bbs, inf);
+    
     if ~isempty(outFFmt)
         saveas(hFig, outFFmt, 'png');
     end

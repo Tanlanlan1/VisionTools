@@ -223,22 +223,34 @@ void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray*
         
         // init weight
         if(fBinary==1){
-            // balance negative labels
+            // balance weights of labels
             int nPos = nPerClsSample; //FIXME: assumes positive data is smaller
             int nNeg = nData - nPos;
             assert(nPos < nNeg);
-            int dInd = -1;
-            while(nNeg!=nPos){
-                dInd = (dInd+1)%nData;
-                
+
+            for(int dInd=0; dInd<nData; ++dInd){
                 int clsLabel = (int)((*GetIntPnt(i_ys, dInd, 0)) != (rInd+1)) + 1;
-                if(ws.GetRef(dInd, clsLabel-1) == 0)
-                    continue;
-                if(clsLabel == 2 && rand()%2 == 0){ // negative
-                    ws.GetRef(dInd, clsLabel-1) = 0; // zero base
-                    nNeg--;
+                if(clsLabel == 1){
+                    ws.GetRef(dInd, 0) = nCls_ori-1; // zero base
+                    ws.GetRef(dInd, 1) = nCls_ori-1; // zero base
                 }
-            }
+            }   
+            
+//             int dInd = -1;
+//             while(nNeg!=nPos){
+//                 dInd = (dInd+1)%nData;
+//                 if(ws.GetRef(dInd, 0) == 0 && ws.GetRef(dInd, 1) == 0)
+//                     continue;
+//                 
+//                 int clsLabel = (int)((*GetIntPnt(i_ys, dInd, 0)) != (rInd+1)) + 1;
+//                 
+// //                 if(clsLabel == 2 && rand()%(nCls_ori-1) == 0){ // negative
+//                 if(clsLabel == 2 && (*GetIntPnt(i_ys, dInd, 0)) != 4){
+//                     ws.GetRef(dInd, 0) = 0; // zero base
+//                     ws.GetRef(dInd, 1) = 0; // zero base
+//                     nNeg--;
+//                 }
+//             }
             assert(nPos == nNeg);
         }
         
@@ -253,12 +265,7 @@ void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray*
                 clsLabel = (*GetIntPnt(i_ys, dInd, 0));
             }
             zs.GetRef(dInd, clsLabel-1) = 1; // zero base
-        }   
-        
-        
-        
-        
-        
+        }           
 
         // train weak classifiers
         char buf[1024];

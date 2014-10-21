@@ -36,6 +36,10 @@ function [ o_pred, o_params, o_feats ] = PredSemSeg( i_imgs, i_mdls, i_params )
 if ~isfield(i_params, 'scales')
     i_params.scales = 1;
 end
+if ~isfield(i_params, 'mdlRects')
+    i_params.mdlRects = [];
+end
+
 
 % bulid a scale space
 imgs_test_scale = struct('img', [], 'scale', []);
@@ -107,80 +111,77 @@ fprintf('* Running time PredSemSeg_mex: %s sec.\n', num2str(toc(mexTID)));
 assert(size(i_imgs, 1) == 1); %%FIXME: assume only one image with different scale images
 iInd = 1;
 [~, refImgInd] = min(abs([i_imgs(iInd, :).scale] - 1));
+refScale = i_imgs(refImgInd).scale;
 imgWH_s1 = [size(i_imgs(iInd, refImgInd).img, 2); size(i_imgs(iInd, refImgInd).img, 1)];
 
-pred = struct('dist', [], 'cls', []);
+pred = struct('dist', [], 'cls', [], 'bbs', []);
 for cfInd=1:size(dist, 3)
 
     dist_max_s = zeros(imgWH_s1(2), imgWH_s1(1), size(dist, 2));
+    bbs = [];
     for iInd=1:size(i_imgs, 1)
-%         refImgInd = [i_imgs(iInd, :).scale] == 1;
-%         assert(~isempty(refImgInd));
-%         imgWH_s1 = [size(i_imgs(iInd, refImgInd).img, 2); size(i_imgs(iInd, refImgInd).img, 1)];
         dist_s = zeros(imgWH_s1(2), imgWH_s1(1), size(i_imgs, 2), size(dist, 2));
         for sInd=1:size(i_imgs, 2)
-%             curScale = i_imgs(iInd, sInd).scale;
+            curScale = i_params.scales(sInd);
             for cInd=1:size(dist, 2)
                 iInd_lin = sub2ind(size(i_imgs), iInd, sInd);
                 sampleMask = sampleMasks(iInd, sInd).mask;
                 curDist = dist(ixy(1, :) == iInd_lin, :, cfInd);
 
+                % current scale response map
                 dist_tmp = zeros(size(sampleMask));
                 dist_tmp(sampleMask) = curDist(:, cInd);
-                %dist_s(:, :, sInd, cInd) = imresize(dist_tmp, 1/curScale);
+                % set dist_S
                 dist_s(:, :, sInd, cInd) = imresize(dist_tmp, [size(dist_s, 1), size(dist_s, 2)]);
+                % find bbs
+                if i_params.classifier.binary == 1 && cInd == 1
+                    [curBBs_rect, curScore] = GetBBs(i_params.mdlRects(cfInd, 3:4), dist_tmp); %%FIXME: return only one bb
+                    curBBs_rect = curBBs_rect/curScale*refScale;
+                    bbs = [bbs; curBBs_rect(1) curBBs_rect(2) curBBs_rect(1)+curBBs_rect(3)-1 curBBs_rect(2)+curBBs_rect(4)-1 curScore];
+                end
             end
         end
-        dist_max_s(:, :, :) = squeeze(max(dist_s, [], 3));
+%         dist_max_s(:, :, :) = squeeze(max(dist_s, [], 3));
+        dist_max_s(:, :, :) = squeeze(mean(dist_s, 3));
     end
+    % pixel: non-max suppression
     pred(cfInd).dist = dist_max_s;
     [~, pred(cfInd).cls] = max(dist_max_s, [], 3);
-    
-%     if i_params.classifier.binary == 1
-%         pred(cfInd).cls = dist_max_s(:, :, 1)>0 + 2*(dist_max_s(:, :, 1)<=0);
-%     else
-%         [~, pred(cfInd).cls] = max(dist_max_s, [], 3); %%FIXME: how can we handle background??
-%     end
-    
+    % bbs: non-max suppression
+    pred(cfInd).bbs = bbs(nms(bbs, 0.5), :);
 end
-
-% o_dist = repmat(zeros(size(sampleMask)), [1 1 size(dist, 2)]);
-% for cInd=1:size(dist, 2)
-%     dist_tmp = zeros(size(sampleMask));
-%     dist_tmp(sampleMask) = dist(:, cInd);
-%     o_dist(:, :, cInd) = dist_tmp;
-% end
 
 
 %% return
 o_params = struct('feat', tbParams, 'classifier', JBParams);
 o_feats = feats;
 o_pred = pred;
-% o_dist = dist_max_s;
-% [~, o_cls] = max(o_dist, [], 3);
 
 end
 
-% function [x_meta_mex, JBParams_mex] = convType(x_meta, JBParams)
-% x_meta_mex = x_meta;
-% % x_meta.ixy
-% x_meta_mex.ixy = int32(x_meta_mex.ixy);
-% % x_meta.intImgfeat
-% for iInd=1:numel(x_meta_mex.intImgFeat)
-%     x_meta_mex.intImgFeat(iInd).TextonIntImg = double(x_meta_mex.intImgFeat(iInd).TextonIntImg);
+function [o_BBs_rect, o_score] = GetBBs(i_mdlWH, i_respMap)
+
+bbWH = round(i_mdlWH);
+respMap = i_respMap;
+% % show the response map
+% if verbosity>=2
+%     figure(43125); imagesc(respMap); axis image;
 % end
-% % x_meta.tbParams
-% x_meta_mex.TBParams.LOFilterWH = int32(x_meta_mex.TBParams.LOFilterWH);
-% x_meta_mex.TBParams.nTexton = int32(x_meta_mex.TBParams.nTexton);
-% x_meta_mex.TBParams.parts = int32(x_meta_mex.TBParams.parts);
-% % JBParams
-% JBParams_mex = JBParams;
-% JBParams_mex.nWeakLearner = int32(JBParams_mex.nWeakLearner);
-% JBParams_mex.featDim = int32(JBParams_mex.featDim);
-% JBParams_mex.nData = int32(JBParams_mex.nData);
-% JBParams_mex.nCls = int32(JBParams_mex.nCls);
-% JBParams_mex.featSelRatio = double(JBParams_mex.featSelRatio);
-% JBParams_mex.featValRange = double(JBParams_mex.featValRange(:));
-% JBParams_mex.verbosity = int32(JBParams_mex.verbosity);
-% 
+
+% find max
+maxResp = conv2(respMap, fspecial('average', [bbWH(2) bbWH(1)]), 'valid');
+% % show the max response map
+% if verbosity>=2
+%     figure(56433); imagesc(maxResp); axis image;
 % end
+
+% return bb
+[C, y_maxs] = max(maxResp, [], 1);
+[maxVal, xc] = max(C, [], 2);
+yc = y_maxs(xc);
+
+% o_BBs_rect = [xc-round(bbWH(1)/2) yc-round(bbWH(2)/2) bbWH(1) bbWH(2)];
+o_BBs_rect = [xc yc bbWH(1) bbWH(2)];
+o_score = maxVal;
+
+end
