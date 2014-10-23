@@ -5,7 +5,8 @@ void FitStump_binary(
         JBMdl& o_mdl, Mat<double> &o_hs){
     // init
     int featDim = *((int *)mxGetData(mxGetField(i_params, 0, "featDim")));
-    int nData = *((int *)mxGetData(mxGetField(i_params, 0, "nData")));
+//     int nData = *((int *)mxGetData(mxGetField(i_params, 0, "nData")));
+    int nData = i_ws.Size(1);
     int nCls_ori = *((int *)mxGetData(mxGetField(i_params, 0, "nCls")));
     int fBinary = *GetIntPnt(mxGetField(i_params, 0, "binary"), 0, 0);
     double featSelRatio = *((double *)mxGetData(mxGetField(i_params, 0, "featSelRatio")));
@@ -80,7 +81,8 @@ void FitStumpForAllS(
         JBMdl& o_mdl, Mat<double> &o_hs){
     // init
     int featDim = *((int *)mxGetData(mxGetField(i_params, 0, "featDim")));
-    int nData = *((int *)mxGetData(mxGetField(i_params, 0, "nData")));
+//     int nData = *((int *)mxGetData(mxGetField(i_params, 0, "nData")));
+    int nData = i_ws.Size(1);
     int nCls_ori = *((int *)mxGetData(mxGetField(i_params, 0, "nCls")));
     int fBinary = *GetIntPnt(mxGetField(i_params, 0, "binary"), 0, 0);
     double featSelRatio = *((double *)mxGetData(mxGetField(i_params, 0, "featSelRatio")));
@@ -194,22 +196,24 @@ void FitStumpForAllS(
 void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray* i_params, Mat<JBMdl> &o_mdls){
     // get params
     int nWeakLearner = *GetIntPnt(mxGetField(i_params, 0, "nWeakLearner"), 0, 0);
-    int nData = *GetIntPnt(mxGetField(i_params, 0, "nData"), 0, 0);
+    int nData_ori = *GetIntPnt(mxGetField(i_params, 0, "nData"), 0, 0);
     int nPerClsSample = *GetIntPnt(mxGetField(i_params, 0, "nPerClsSample"), 0, 0);
     int nCls_ori = *GetIntPnt(mxGetField(i_params, 0, "nCls"), 0, 0);
     int verbosity = *GetIntPnt(mxGetField(i_params, 0, "verbosity"), 0, 0);
     int fBinary = *GetIntPnt(mxGetField(i_params, 0, "binary"), 0, 0);
     int learnBG = *GetIntPnt(mxGetField(i_params, 0, "learnBG"), 0, 0);
-    int nCls, nRep;
+    int nCls, nRep, nData;
     if(fBinary==1) { //FIXME: duplicated
         nRep = nCls_ori;
         nCls = 2;
+        nData = nPerClsSample*2;
         if(learnBG == 0)
             nRep--;
     }
     else{
         nRep = 1;
         nCls = nCls_ori;
+        nData = nData_ori;
         // always learn BG
     }
     
@@ -220,22 +224,59 @@ void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray*
         // allocate zs, ws    
         Mat<double> zs(-1, nData, nCls);    
         Mat<double> ws(1, nData, nCls);
+        struct XMeta x_meta = i_x_meta;
+        vector<int> ys;
         
         // init weight
         if(fBinary==1){
             // balance weights of labels
             int nPos = nPerClsSample; //FIXME: assumes positive data is smaller
-            int nNeg = nData - nPos;
-            assert(nPos < nNeg);
-
-            for(int dInd=0; dInd<nData; ++dInd){
-                int clsLabel = (int)((*GetIntPnt(i_ys, dInd, 0)) != (rInd+1)) + 1;
-                if(clsLabel == 1){
-                    ws.GetRef(dInd, 0) = nCls_ori-1; // zero base
-                    ws.GetRef(dInd, 1) = nCls_ori-1; // zero base
-                }
-            }   
             
+            // counts neg/pos
+            vector<int> sampleInd;
+            vector<int> posInd;
+            vector<int> negInd;
+            for(int dInd=0; dInd<nData_ori; ++dInd){
+                int clsLabel = (int)((*GetIntPnt(i_ys, dInd, 0)) != (rInd+1)) + 1;
+                if (clsLabel == 1)
+                    // count positive
+                    posInd.push_back(dInd);
+                else
+                    // count negative
+                    negInd.push_back(dInd);
+            }
+            
+            // sample
+            sampleInd = posInd;
+            vector<int> randNegInd;
+            GetRandPerm(0, negInd.size()-1, randNegInd);
+            for(int i=0; i<nPos; ++i)
+                sampleInd.push_back(negInd[randNegInd[i]]);
+            assert(sampleInd.size() == nData);
+            printf("sampleSize: %d\n", sampleInd.size());
+            
+            // construct XMeta, ys
+            vector<int> ixys_s;
+            for(int sInd=0; sInd<sampleInd.size(); ++sInd){
+                // ys
+                ys.push_back(*GetIntPnt(i_ys, sampleInd[sInd], 0));
+                
+                // xMeta
+                ixys_s.push_back(i_x_meta.ixys[sampleInd[sInd]*3 + 0]);
+                ixys_s.push_back(i_x_meta.ixys[sampleInd[sInd]*3 + 1]);
+                ixys_s.push_back(i_x_meta.ixys[sampleInd[sInd]*3 + 2]);
+            }
+            x_meta.ixys = ixys_s;
+            
+                        
+//             for(int dInd=0; dInd<nData; ++dInd){
+//                 int clsLabel = (int)((*GetIntPnt(i_ys, dInd, 0)) != (rInd+1)) + 1;
+//                 if(clsLabel == 1){
+//                     ws.GetRef(dInd, 0) = nCls_ori-1; // zero base
+//                     ws.GetRef(dInd, 1) = nCls_ori-1; // zero base
+//                 }
+//             }   
+//             
 //             int dInd = -1;
 //             while(nNeg!=nPos){
 //                 dInd = (dInd+1)%nData;
@@ -251,18 +292,22 @@ void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray*
 //                     nNeg--;
 //                 }
 //             }
-            assert(nPos == nNeg);
+//             assert(nPos == nNeg);
+        }
+        else
+        {
+            assert(0);//FIXME:
         }
         
         // init labels
         for(int dInd=0; dInd<nData; ++dInd){
-            if((*GetIntPnt(i_ys, dInd, 0)) == 0) // bg
+            if(ys[dInd] == 0) // bg
                 continue;
             int clsLabel;
             if(fBinary==1){ //FIXME: not beautiful
-                clsLabel = (int)((*GetIntPnt(i_ys, dInd, 0)) != (rInd+1)) + 1;
+                clsLabel = (int)(ys[dInd] != (rInd+1)) + 1;
             }else{
-                clsLabel = (*GetIntPnt(i_ys, dInd, 0));
+                clsLabel = ys[dInd];
             }
             zs.GetRef(dInd, clsLabel-1) = 1; // zero base
         }           
@@ -278,14 +323,14 @@ void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray*
 
             // fit a stump
             if(fBinary == 1){
-                FitStump_binary(i_x_meta, zs, ws, i_params, o_mdls.GetRef(m, rInd), hs);
+                FitStump_binary(x_meta, zs, ws, i_params, o_mdls.GetRef(m, rInd), hs);
                 if(verbosity >= 1){
                     sprintf(buf, "J_wse = % 12.06f", CalcJwse_binary(ws, zs, hs));
                     cout << buf << endl;
                     fflush(stdout);
                 }
             }else{
-                FitStumpForAllS(i_x_meta, zs, ws, i_params, o_mdls.GetRef(m, rInd), hs);
+                FitStumpForAllS(x_meta, zs, ws, i_params, o_mdls.GetRef(m, rInd), hs);
                 if(verbosity >= 1){
                     sprintf(buf, "J_wse = % 12.06f", CalcJwse(ws, zs, hs));
                     cout << buf << endl;

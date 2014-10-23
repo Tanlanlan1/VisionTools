@@ -36,6 +36,7 @@ lineWidth = 3;
 i_showcb = 1;
 bbsize = 5;
 
+im = min(max(0, im), 1);
 image(im); 
 axis image;
 if isempty(scoreRange)
