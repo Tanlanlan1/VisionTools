@@ -316,7 +316,7 @@ void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray*
         char buf[1024];
         Mat<double> hs(0, nData, nCls);
         for(int m=0; m<nWeakLearner; ++m){
-            if(verbosity>=1){
+            if(verbosity>=1 & m%100 == 0){
                 sprintf(buf, "* [%dth classifier] boosting iter: %d/%d...", rInd+1, m+1, nWeakLearner);
                 cout << buf;
             }
@@ -324,14 +324,14 @@ void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray*
             // fit a stump
             if(fBinary == 1){
                 FitStump_binary(x_meta, zs, ws, i_params, o_mdls.GetRef(m, rInd), hs);
-                if(verbosity >= 1){
+                if(verbosity >= 1 & m%100 == 0){
                     sprintf(buf, "J_wse = % 12.06f", CalcJwse_binary(ws, zs, hs));
                     cout << buf << endl;
                     fflush(stdout);
                 }
             }else{
                 FitStumpForAllS(x_meta, zs, ws, i_params, o_mdls.GetRef(m, rInd), hs);
-                if(verbosity >= 1){
+                if(verbosity >= 1 & m%100 == 0){
                     sprintf(buf, "J_wse = % 12.06f", CalcJwse(ws, zs, hs));
                     cout << buf << endl;
                     fflush(stdout);

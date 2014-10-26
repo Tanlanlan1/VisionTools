@@ -1,4 +1,4 @@
-function [ o_label, o_label_lin ] = GetSuperpixel( i_img, i_method, i_params )
+function [ o_label, o_label_sub ] = GetSuperpixel( i_img, i_method, i_params )
 % 
 %   Matlab wrapper of superpixel methods
 %   
@@ -96,14 +96,14 @@ switch i_method
             setenv('LD_LIBRARY_PATH', [vlfeatmexapthall ':' getenv('LD_LIBRARY_PATH')]);
         end
         %% run
-        imlab = vl_xyz2lab(vl_rgb2xyz(im2double(i_img)));
+        imlab = vl_xyz2lab(vl_rgb2xyz(min(max(0, im2double(i_img)), 1)));
         o_label = vl_slic(single(imlab), i_params.regionSize, i_params.regularizer);
         
         uLabels = unique(o_label(:)');
-        o_label_lin = cell(1, numel(uLabels));
-        parfor lInd=1:numel(uLabels)
+        o_label_sub = cell(1, numel(uLabels));
+        for lInd=1:numel(uLabels)
             [rs, cs] = find(o_label == uLabels(lInd));
-            o_label_lin{lInd} = [cs(:)'; rs(:)'];
+            o_label_sub{lInd} = [cs(:)'; rs(:)'];
         end
         
         if i_params.verbosity >= 1

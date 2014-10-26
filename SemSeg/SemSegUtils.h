@@ -13,7 +13,7 @@
 #include <omp.h>
 #include <algorithm>
 
-#define NTHREAD 64
+#define NTHREAD 60
 
 using namespace std;
 
@@ -67,6 +67,11 @@ public:
         nCols_ = i_nc;
         elems_.resize(i_nr*i_nc*i_nd);
     }
+    
+    T* Data(){
+        return elems_.data();
+    }
+    
 };
 
 // double* GetDblPnt(const mxArray* i_m, int i_r, int i_c, int i_d){
@@ -170,12 +175,14 @@ void ConvMat2MMat(Mat<double>& i_mat, const mxArray* o_mat){
     else
         nDeps = pDims[2];
         
+    double* mxData = (double*)mxGetData(o_mat);
+    memcpy(mxData, i_mat.Data(), nRows*nCols*nDeps*sizeof(double));
     
     
-    for(int rInd=0; rInd<nRows; ++rInd)
-        for(int cInd=0; cInd<nCols; ++cInd)
-            for(int dInd=0; dInd<nDeps; ++dInd)
-                (*GetDblPnt(o_mat, rInd, cInd, dInd)) = i_mat.GetRef(rInd, cInd, dInd);
+//     for(int rInd=0; rInd<nRows; ++rInd)
+//         for(int cInd=0; cInd<nCols; ++cInd)
+//             for(int dInd=0; dInd<nDeps; ++dInd)
+//                 (*GetDblPnt(o_mat, rInd, cInd, dInd)) = i_mat.GetRef(rInd, cInd, dInd);
 }
 
 void ConvMMdl2CMdl(const mxArray* i_mdls, Mat<JBMdl> &o_mdls){
@@ -287,12 +294,17 @@ void ConvMXIntImgFeat2CIntImgFeat(const mxArray* i_intImgFeat, vector<struct Int
         int nCols = dims[1];
         int nDeps = dims[2];
         intImgFeat.feat.resize(nRows*nCols*nDeps);
-        for(int k=0; k<nDeps; ++k)
-            for(int j=0; j<nCols; ++j)
-                for(int i=0; i<nRows; ++i){
-                    intImgFeat.feat[i + j*nRows + k*nRows*nCols] = (*GetDblPnt(curIntImg, i, j, k));
-//                     intImgFeat.feat.push_back(*GetDblPnt(curIntImg, i, j, k));
-                }
+        
+        // copy
+        double *mxData = (double*)mxGetData(curIntImg);
+        memcpy(intImgFeat.feat.data(), mxData, nRows*nCols*nDeps*sizeof(double));
+        
+//         for(int k=0; k<nDeps; ++k)
+//             for(int j=0; j<nCols; ++j)
+//                 for(int i=0; i<nRows; ++i){
+//                     intImgFeat.feat[i + j*nRows + k*nRows*nCols] = (*GetDblPnt(curIntImg, i, j, k));
+// //                     intImgFeat.feat.push_back(*GetDblPnt(curIntImg, i, j, k));
+//                 }
         intImgFeat.nRows = nRows;
         intImgFeat.nCols = nCols;
         intImgFeat.nDeps = nDeps;
@@ -318,12 +330,16 @@ void ConvMXMeta2CXMeta(const mxArray* i_x_meta, struct XMeta &o_x_meta){
     int M = mxGetM(ixys);
     int N = mxGetN(ixys);
     o_x_meta.ixys.resize(N*M);
-    for(int j=0; j<N; ++j){
-        for(int i=0; i<M; ++i){
-            o_x_meta.ixys[i+j*M] = (*GetIntPnt(ixys, i, j));
-//             o_x_meta.ixys.push_back(*GetIntPnt(ixys, i, j));
-        }
-    }
+    
+    int *mxData = (int*) mxGetData(ixys);
+    memcpy(o_x_meta.ixys.data(), mxData, N*M*sizeof(int));
+    
+//     for(int j=0; j<N; ++j){
+//         for(int i=0; i<M; ++i){
+//             o_x_meta.ixys[i+j*M] = (*GetIntPnt(ixys, i, j));
+// //             o_x_meta.ixys.push_back(*GetIntPnt(ixys, i, j));
+//         }
+//     }
 }
 
 void SetMdlField(mxArray* o_mdl, double a, double b, int f, double theta, vector<double> &kc, vector<int> &S){

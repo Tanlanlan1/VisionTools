@@ -28,23 +28,37 @@
 //     return Hs;
 // }
 
+int NTHREAD_MAX;
+
 void PredJointBoost(Mat<double>& o_Hs, struct XMeta &i_xs_meta, Mat<JBMdl>& i_mdls, const mxArray *i_params){
     // init
+    
     int nWeakLearner = *GetIntPnt(mxGetField(i_params, 0, "nWeakLearner"), 0, 0);
     int nData = *GetIntPnt(mxGetField(i_params, 0, "nData"), 0, 0);
     int nCls_ori = *GetIntPnt(mxGetField(i_params, 0, "nCls"), 0, 0);
     int nClsf = i_mdls.Size(2);
     int fBinary = *GetIntPnt(mxGetField(i_params, 0, "binary"), 0, 0);
+    int verbosity = *GetIntPnt(mxGetField(i_params, 0, "verbosity"), 0, 0);
     int nCls;
     if(fBinary==1) { //FIXME: duplicated
-        nCls = 2;
+        nCls = 2-1;
     }
     else{
         nCls = nCls_ori;
     }
     // predict
+    int nThread_out = min(nClsf, (int)round(sqrt(NTHREAD_MAX)));
+    #pragma omp parallel for num_threads(nThread_out)
     for(int cfInd=0; cfInd<nClsf; ++cfInd){
-        #pragma omp parallel for
+        if(verbosity>=2 && cfInd%10==0){
+            char buf[1024];
+            sprintf(buf, "* [%dth classifier] predict...", cfInd+1);
+            cout << buf;
+            fflush(stdout);
+        }
+        
+        int nThread_in = round(NTHREAD_MAX/nThread_out);
+        #pragma omp parallel for num_threads(nThread_in)
         for(int dInd=0; dInd<nData; ++dInd){
             for(int cInd=0; cInd<nCls; ++cInd){    
                 double H = 0;
@@ -59,6 +73,13 @@ void PredJointBoost(Mat<double>& o_Hs, struct XMeta &i_xs_meta, Mat<JBMdl>& i_md
                 o_Hs.GetRef(dInd, cInd, cfInd) = H;
             }
         }
+        
+        if(verbosity>=2 && cfInd%10==0){
+            char buf[1024];
+            sprintf(buf, "done");
+            cout << buf << endl;
+            fflush(stdout);
+        }
     }
 }
 
@@ -66,9 +87,11 @@ void
 mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 {
     //openMP
+    NTHREAD_MAX = omp_get_max_threads();
     omp_set_dynamic(0);                     // disable dynamic teams
-    omp_set_num_threads(NTHREAD); // override env var OMP_NUM_THREADS
-    
+    omp_set_nested(1);
+    omp_set_num_threads(round(NTHREAD_MAX*0.8)); // override env var OMP_NUM_THREADS
+
     // i_xs
     const mxArray* xs_meta = prhs[0];
     struct XMeta xMeta;
@@ -77,6 +100,7 @@ mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     const mxArray* i_mdls = prhs[1];
     Mat<JBMdl> mdls_cpp;
     ConvMMdl2CMdl(i_mdls, mdls_cpp);
+
     // struct i_params
     const mxArray* i_params = prhs[2];
     int fBinary = *GetIntPnt(mxGetField(i_params, 0, "binary"), 0, 0);
@@ -94,14 +118,15 @@ mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     // learn
     Mat<double> Hs(0, nData, nCls, nClsf);
     PredJointBoost(Hs, xMeta, mdls_cpp, i_params);
-//     mxArray* dist = mxCreateDoubleMatrix(nData, nCls, mxREAL);
+    
+    // return
     mwSize sz[3];
     sz[0] = nData;
     sz[1] = nCls;
     sz[2] = nClsf;
     mxArray* dist = mxCreateNumericArray(3, sz, mxDOUBLE_CLASS, mxREAL);
     ConvMat2MMat(Hs, dist);
-    // return
+    
     plhs[0] = dist;
 
     return;
