@@ -1,4 +1,4 @@
-function [ o_label, o_label_sub ] = GetSuperpixel( i_img, i_method, i_params )
+function [ o_label, o_labelSt ] = GetSuperpixel( i_img, i_method, i_params )
 % 
 %   Matlab wrapper of superpixel methods
 %   
@@ -98,13 +98,22 @@ switch i_method
         %% run
         imlab = vl_xyz2lab(vl_rgb2xyz(min(max(0, im2double(i_img)), 1)));
         o_label = vl_slic(single(imlab), i_params.regionSize, i_params.regularizer);
+        o_label = o_label + 1; % one base
         
-        uLabels = unique(o_label(:)');
-        o_label_sub = cell(1, numel(uLabels));
-        for lInd=1:numel(uLabels)
-            [rs, cs] = find(o_label == uLabels(lInd));
-            o_label_sub{lInd} = [cs(:)'; rs(:)'];
+        ID2Lbl = unique(o_label(:)');
+%         label_ind = struct('ind', []);
+        label_xymean = zeros(2, numel(ID2Lbl));
+        for lInd=1:numel(ID2Lbl)
+            mask = o_label == ID2Lbl(lInd);
+            [rs, cs] = find(mask);
+            label_xymean(:, lInd) = round([mean(cs); mean(rs)]);
+%             label_ind(lInd).ind = find(mask);
         end
+        
+        Lbl2ID = ones(max(o_label(:)), 1)*(-1);
+        Lbl2ID(ID2Lbl) = find(ID2Lbl);
+        
+        o_labelSt = struct('label', o_label, 'ID2Lbl', ID2Lbl, 'Lbl2ID', Lbl2ID, 'lblXYMean', label_xymean);
         
         if i_params.verbosity >= 1
             figure(30000);

@@ -7,7 +7,9 @@
 %
 
 %% load an image
-img = im2double(imread('classroom.jpeg'));
+img = imresize(im2double(imread('classroom.jpeg')), 0.25);
 
 %% obtain superpixel using NCut
-label = GetSuperpixel(img, 'NCut', struct('N', 128));
+% label = GetSuperpixel(img, 'NCut', struct('N', 128));
+
+label = GetSuperpixel(img, 'SLIC');
