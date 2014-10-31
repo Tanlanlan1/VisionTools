@@ -67,6 +67,13 @@ end
 if ~isfield(i_params, 'bounaryRatio')
     i_params.bounaryRatio = 0.1;
 end
+if ~isfield(i_params, 'WHMinRatioThres')
+    i_params.WHMinRatioThres = 0.1;
+end
+if ~isfield(i_params, 'convexityThres')
+    i_params.convexityThres = 0.5;
+end
+
 
 if iscell(i_imgs)
     nImg = numel(i_imgs);
@@ -88,7 +95,7 @@ simFunctionHandles = {@SSSimColourTextureSizeFillOrig, @SSSimTextureSizeFill, @S
 
 %% Perform Selective Search
 o_prop = cell(nImg, 1);
-parfor iInd=1:nImg
+for iInd=1:nImg
     im = im2double(i_imgs{iInd});
     minSize = i_params.k;
     nPix = size(im, 1)*size(im, 2);
@@ -118,16 +125,13 @@ parfor iInd=1:nImg
         curBlob = hBlobs{hInd};
         valid = false(numel(curBlob), 1);
         for bInd=1:numel(curBlob)
-%             nCurPix = sum(curBlob{bInd}.mask(:));
-%             if i_params.minRatio*nPix <= nCurPix && i_params.maxRatio*nPix >= nCurPix
-%                 valid(bInd) = true;
-%             end
             
             curWH = [size(curBlob{bInd}.mask, 2); size(curBlob{bInd}.mask, 1)];
-            if all(i_params.minRatio*imgWH <= curWH) && all(i_params.maxRatio*imgWH >= curWH)
-                valid(bInd) = true;
-            end
             
+            valid(bInd) = ...
+                all(i_params.minRatio*imgWH <= curWH) && all(i_params.maxRatio*imgWH >= curWH) && ... % size
+                min(curWH(1)/curWH(2), curWH(2)/curWH(1)) > i_params.WHMinRatioThres && ... % thinness
+                curBlob{bInd}.size/(curWH(1)*curWH(2)) > i_params.convexityThres; % convexity
         end
         hBlobs_pruned{hInd} = curBlob(valid);
         % show

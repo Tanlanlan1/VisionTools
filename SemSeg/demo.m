@@ -48,7 +48,7 @@ JBParams = struct(...
 if annotate
     % obtain annotations
     img1 = imresize(imread('ted1.jpg'), resizeRatio);
-    img2 = imresize(imread('ted2.jpg'), resizeRatio);
+    img2 = imresize(imread('ted2_d5.jpg'), resizeRatio);
     if exist('ann.mat', 'file') && saveAnnotation
         load('ann.mat');
     else

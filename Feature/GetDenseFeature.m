@@ -85,8 +85,9 @@ for cInd=1:numel(i_cues)
             assert(~iscell(imgs));
             o_feat = GetTextureLMFeature(imgs);
              
-        case 'Texture_MR4'
+        case 'Texture_MR8'
 %             img = rgb2gray(img);
+            o_feat = GetTextureMR8Feature(imgs);
             
         case 'Texton'
 %             [o_feat{cInd}, o_params] = GetTextonFeature(imgs, i_params);
@@ -162,6 +163,22 @@ o_filterBank = Fs;
 % o_filterBank = Fs;
 end
 
+function [o_feat] = GetTextureMR8Feature(i_img)
+
+nImgs = numel(i_img);
+FSz = 51;
+o_feat = i_img;
+for i=1:nImgs
+    img = im2double(rgb2gray(i_img(i).img));
+    img_pad = padarray(img, [(FSz-1)/2 (FSz-1)/2], 'symmetric', 'both');
+    responses = MR8fast(img_pad);
+    responses = (reshape(shiftdim(responses, 1), [size(img, 1) size(img, 2) 8]));
+    
+    o_feat(i).Texture = responses;
+end
+
+end
+
 function [o_feats, o_params] = GetTextonFeature(i_imgs, i_params)
 %% check i_params
 assert(isfield(i_params, 'nTexton'));
@@ -209,6 +226,7 @@ end
 
 if ~isfield(i_imgs, 'Texture')
     [feats, fb] = GetTextureLMFeature(feats);
+%     feats = GetTextureMR8Feature(feats);
     for iInd=1:nImgs %%FIXME: not good...
         % add colors
         feats(iInd).Texture = cat(3, feats(iInd).Texture, GetRGBDenseFeature(feats(iInd).img));
