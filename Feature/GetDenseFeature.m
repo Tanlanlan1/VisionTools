@@ -135,15 +135,31 @@ o_feat = applycform(i_img, makecform('srgb2lab'));
 end
 
 function [o_feat, o_filterBank] = GetTextureLMFeature(i_img)
-img = rgb2gray(i_img);
+
+nImgs = numel(i_img);
 Fs = makeLMfilters;
-img_pad = padarray(img, [(size(Fs, 1)-1)/2 (size(Fs, 2)-1)/2], 'symmetric', 'both');
-responses = zeros(size(img, 1), size(img, 2), size(Fs, 3));
-for fInd=1:size(Fs, 3)
-    responses(:, :, fInd) = conv2(img_pad, Fs(:, :, fInd), 'valid'); % symetric filters, so don't need to flip
+o_feat = i_img;
+for i=1:nImgs
+    img = rgb2gray(i_img(i).img);
+    img_pad = padarray(img, [(size(Fs, 1)-1)/2 (size(Fs, 2)-1)/2], 'symmetric', 'both');
+    responses = zeros(size(img, 1), size(img, 2), size(Fs, 3));
+    for fInd=1:size(Fs, 3)
+        responses(:, :, fInd) = conv2(img_pad, Fs(:, :, fInd), 'valid'); % symetric filters, so don't need to flip
+    end
+    o_feat(i).Texture = responses;
 end
-o_feat = responses;
 o_filterBank = Fs;
+
+
+% img = rgb2gray(i_img);
+% Fs = makeLMfilters;
+% img_pad = padarray(img, [(size(Fs, 1)-1)/2 (size(Fs, 2)-1)/2], 'symmetric', 'both');
+% responses = zeros(size(img, 1), size(img, 2), size(Fs, 3));
+% for fInd=1:size(Fs, 3)
+%     responses(:, :, fInd) = conv2(img_pad, Fs(:, :, fInd), 'valid'); % symetric filters, so don't need to flip
+% end
+% o_feat = responses;
+% o_filterBank = Fs;
 end
 
 function [o_feats, o_params] = GetTextonFeature(i_imgs, i_params)
@@ -191,9 +207,9 @@ if verbosity >= 1
     disp('* obtain texture information');
 end
 
-for iInd=1:nImgs
-    if ~isfield(i_imgs(iInd), 'Texture')
-        [feats(iInd).Texture, fb] = GetTextureLMFeature(feats(iInd).img);
+if ~isfield(i_imgs, 'Texture')
+    [feats, fb] = GetTextureLMFeature(feats);
+    for iInd=1:nImgs %%FIXME: not good...
         % add colors
         feats(iInd).Texture = cat(3, feats(iInd).Texture, GetRGBDenseFeature(feats(iInd).img));
     end

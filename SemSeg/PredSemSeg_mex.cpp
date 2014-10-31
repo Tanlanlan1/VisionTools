@@ -87,10 +87,14 @@ void
 mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 {
     //openMP
-    NTHREAD_MAX = omp_get_max_threads();
+    NTHREAD_MAX = NTHREAD;
     omp_set_dynamic(0);                     // disable dynamic teams
     omp_set_nested(1);
-    omp_set_num_threads(round(NTHREAD_MAX*0.8)); // override env var OMP_NUM_THREADS
+    omp_set_num_threads((int)round(NTHREAD_MAX*0.8)); // override env var OMP_NUM_THREADS
+    char buf[1024];
+    sprintf(buf, "* #thread: %d/%d", (int)round(NTHREAD_MAX*0.8), (int)NTHREAD_MAX);
+    cout << buf << endl;
+    fflush(stdout);
 
     // i_xs
     const mxArray* xs_meta = prhs[0];

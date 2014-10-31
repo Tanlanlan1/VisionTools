@@ -43,15 +43,18 @@ end
 totTic = tic;
 
 % bulid a scale space
-imgs_test_scale = struct('img', [], 'scale', []);
-imgs_test = i_imgs;
-for iInd=1:numel(imgs_test)
-    for sInd=1:numel(i_params.scales)
-        imgs_test_scale(iInd, sInd).img = imresize(imgs_test(iInd).img, i_params.scales(sInd));
-        imgs_test_scale(iInd, sInd).scale = i_params.scales(sInd);
+if ~isfield(i_imgs, 'scale')
+    imgs_test_scale = struct('img', [], 'scale', [], 'pivot', []);
+    imgs_test = i_imgs;
+    for iInd=1:numel(imgs_test)
+        for sInd=1:numel(i_params.scales)
+            imgs_test_scale(iInd, sInd).img = imresize(imgs_test(iInd).img, i_params.scales(sInd));
+            imgs_test_scale(iInd, sInd).scale = i_params.scales(sInd);
+            imgs_test_scale(iInd, sInd).pivot = i_params.scales(sInd) == 1;
+        end
     end
+    i_imgs = imgs_test_scale;
 end
-i_imgs = imgs_test_scale;
 
 %%
 assert(size(i_imgs, 1) == 1); %%FIXME: assume only one image with different scale images
@@ -65,7 +68,7 @@ end
 
 
 %% extract features and predict
-LOFilterWH_half = (i_params.feat.LOFilterWH-1)/2; 
+% LOFilterWH_half = (i_params.feat.LOFilterWH-1)/2; 
 nData_approx = sum(prod(imgWHs, 1));
 
 ixy = zeros(3, nData_approx);
@@ -79,27 +82,34 @@ for iInd=1:nImgs
     [feat, tbParams] = GetDenseFeature(i_imgs(iInd), {'TextonBoostInt'}, i_params.feat);
     feats = [feats; feat];
 
-%     % build sampleMask
-%     sampleMask = sampleMasks(iInd).mask;
-% 
-%     % construct meta data
-%     [rows, cols] = find(sampleMask);
-%     xy = [cols'; rows']; % be careful the order
-%     ixy(:, startInd:startInd+size(xy, 2)-1) = [iInd*ones(1, size(xy, 2)); xy];
-%     
-%     % update a pointer
-%     startInd = startInd+size(xy, 2);
+    if i_params.supPix == 1
+        % get superpixel
+        if isfield(i_imgs(iInd), 'Superpixel')
+            supLabelSts{iInd} = i_imgs(iInd).Superpixel;
+        else
+            [~, supLabelSts{iInd}] = GetSuperpixel(i_imgs(iInd).img, 'SLIC');
+        end
+        label_xymean = supLabelSts{iInd}.lblXYMean;
+
+        % construct meta data
+        ixy(:, startInd:startInd+size(label_xymean, 2)-1) = [iInd*ones(1, size(label_xymean, 2)); label_xymean];
+
+        % update a pointer
+        startInd = startInd+size(label_xymean, 2);
+    else        
+        % build sampleMask
+        sampleMask = sampleMasks(iInd).mask;
+
+        % construct meta data
+        [rows, cols] = find(sampleMask);
+        xy = [cols'; rows']; % be careful the order
+        ixy(:, startInd:startInd+size(xy, 2)-1) = [iInd*ones(1, size(xy, 2)); xy];
+
+        % update a pointer
+        startInd = startInd+size(xy, 2);
+    end
     
-    % get superpixel
-%     [~, supLbl(iInd).label, label_xymean] = GetSuperpixel(i_imgs(iInd).img, 'SLIC');
-    [~, supLabelSts{iInd}] = GetSuperpixel(i_imgs(iInd).img, 'SLIC');
-    label_xymean = supLabelSts{iInd}.lblXYMean;
     
-    % construct meta data
-    ixy(:, startInd:startInd+size(label_xymean, 2)-1) = [iInd*ones(1, size(label_xymean, 2)); label_xymean];
-    
-    % update a pointer
-    startInd = startInd+size(label_xymean, 2);
 end
 ixy(:, startInd:end) = [];
 
@@ -115,67 +125,76 @@ end
 [x_meta_mex, ~, JBParams_mex] = convParamsType(x_meta, [], JBParams);
 mexTID = tic;
 dist = PredSemSeg_mex(x_meta_mex, i_mdls, JBParams_mex);
-fprintf('* Running time PredSemSeg_mex: %s sec.\n', num2str(toc(mexTID)));
+if JBParams.verbosity >= 1
+    fprintf('* Running time PredSemSeg_mex: %s sec.\n', num2str(toc(mexTID)));
+end
 
 %% reshape responses
-tic;
+mexTID = tic;
 dist_resh = reshapePredResponse_mex(size(i_imgs, 1), size(i_imgs, 2), ixy, imgWHs, dist, cell2mat(supLabelSts));
-toc;
-tic;
+if JBParams.verbosity >= 1
+    fprintf('* Running time reshapePredResponse_mex: %s sec.\n', num2str(toc(mexTID)));
+end
 pred = predLabel(i_params, i_imgs, dist_resh);
-toc;
 
 %% return
 o_params = struct('feat', tbParams, 'classifier', JBParams);
-o_feats = feats;
+o_feats = reshape(feats, size(i_imgs));
 o_pred = pred;
-
-fprintf('* the total time of PredSemSeg.m: %s\n', num2str(toc(totTic)));
+if JBParams.verbosity >= 1
+    fprintf('* The total running time of PredSemSeg.m: %s\n\n', num2str(toc(totTic)));
+end
 
 end
 
 
 function [o_resp] = predLabel(i_params, i_imgs, i_dist_resh)
 
+nmsOvRatio = 0.5;
+
 assert(size(i_imgs, 1) == 1); %%FIXME: assume only one image with different scale images
 iInd = 1;
-[~, refImgInd] = min(abs([i_imgs(iInd, :).scale] - 1));
+refImgInd = find([i_imgs(iInd, :).pivot]);
+% [~, refImgInd] = min(abs([i_imgs(iInd, :).scale] - 1));
 refScale = i_imgs(refImgInd).scale;
 imgWH_s1 = [size(i_imgs(iInd, refImgInd).img, 2); size(i_imgs(iInd, refImgInd).img, 1)];
 
+nCls = size(i_dist_resh(1).resp, 3);
+nClf = size(i_dist_resh(1).resp, 4);
+
 pred = struct(...
-    'dist', zeros(imgWH_s1(2), imgWH_s1(1), size(i_dist_resh, 2)), ...
+    'dist', zeros(imgWH_s1(2), imgWH_s1(1), nCls), ...
     'cls', zeros(imgWH_s1(2), imgWH_s1(1)), ...
     'bbs', []);
-pred(size(i_dist_resh, 3)) = pred;
 
-for cfInd=1:size(i_dist_resh, 3) % for all classifiers
+for cfInd=1:nClf % for all classifiers
 
-    dist_max_s = zeros(imgWH_s1(2), imgWH_s1(1), size(dist, 2));
+    dist_max_s = zeros(imgWH_s1(2), imgWH_s1(1), nCls);
     bbs = [];
     for iInd=1:size(i_imgs, 1)
-        dist_s = zeros(imgWH_s1(2), imgWH_s1(1), size(i_imgs, 2), size(dist, 2));
+        dist_s = zeros(imgWH_s1(2), imgWH_s1(1), size(i_imgs, 2), nCls);
         for sInd=1:size(i_imgs, 2)
-            for cInd=1:size(i_dist_resh, 2)
+            for cInd=1:nCls
                 % set dist_S
                 dist_s(:, :, sInd, cInd) = imresize(i_dist_resh(iInd, sInd).resp(:, :, cInd, cfInd), [size(dist_s, 1), size(dist_s, 2)]);
 
                 % find bbs
                 if i_params.classifier.binary == 1 && cInd == 1
                     curScale = i_params.scales(sInd);
-                    [curBBs_rect, curScore] = GetBBs(i_params.mdlRects(cfInd, 3:4), dist_tmp); %%FIXME: return only one bb
+                    [curBBs_rect, curScore] = GetBBs(i_params.mdlRects(cfInd, 3:4), i_dist_resh(iInd, sInd).resp(:, :, cInd, cfInd)); %%FIXME: return only one bb
                     curBBs_rect = curBBs_rect/curScale*refScale;
                     bbs = [bbs; curBBs_rect(1) curBBs_rect(2) curBBs_rect(1)+curBBs_rect(3)-1 curBBs_rect(2)+curBBs_rect(4)-1 curScore];
                 end
             end
         end
-        dist_max_s(:, :, :) = squeeze(mean(dist_s, 3)); % dist_max_s(:, :, :) = squeeze(max(dist_s, [], 3));
+%         dist_max_s(:, :, :) = squeeze(mean(dist_s, 3)); 
+        dist_max_s(:, :, :) = squeeze(max(dist_s, [], 3));
     end
     % pixel: non-max suppression
     pred(cfInd).dist = dist_max_s;
     [~, pred(cfInd).cls] = max(dist_max_s, [], 3);
     % bbs: non-max suppression
-    pred(cfInd).bbs = bbs(nms(bbs, 0.5), :);
+    pred(cfInd).bbs = bbs(nms(bbs, nmsOvRatio), :);
 end
 
 %% return 

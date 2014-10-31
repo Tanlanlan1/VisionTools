@@ -168,7 +168,7 @@ parfor iInd=1:nImg
     
     % show
     if i_params.verbosity >= 1
-        prop_cell = mat2cell(prop, ones(1, numel(prop)), 1);
+        prop_cell = num2cell(prop);
         ShowBlobs(prop_cell, 5, 5, im);
     end
     

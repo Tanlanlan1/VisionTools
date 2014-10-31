@@ -13,7 +13,7 @@
 #include <omp.h>
 #include <algorithm>
 
-#define NTHREAD 60
+#define NTHREAD 64
 
 using namespace std;
 
