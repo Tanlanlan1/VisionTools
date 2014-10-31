@@ -48,7 +48,7 @@ JBParams = struct(...
 if annotate
     % obtain annotations
     img1 = imresize(imread('ted1.jpg'), resizeRatio);
-    img2 = imresize(imread('ted2_d5.jpg'), resizeRatio);
+    img2 = imresize(imread('ted2.jpg'), resizeRatio);
     if exist('ann.mat', 'file') && saveAnnotation
         load('ann.mat');
     else
@@ -72,9 +72,6 @@ if annotate
         save('ann.mat', 'rects');
     end
     % construct data structure
-%     [~, supsub1] = GetSuperpixel( img1, 'SLIC');
-%     [~, supsub2] = GetSuperpixel( img2, 'SLIC');
-%     imgs = struct('img', {img1, img2}, 'superpixels_sub', {supsub1, supsub2});
     imgs = struct('img', {img1, img2});
     labels = struct('cls', {zeros(size(img1, 1), size(img1, 2)), []}, 'depth', []);
     for rInd=1:size(rects, 1)
