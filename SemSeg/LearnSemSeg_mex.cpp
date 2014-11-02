@@ -195,6 +195,7 @@ void FitStumpForAllS(
 
 void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray* i_params, Mat<JBMdl> &o_mdls){
     // get params
+    char buf[1024];
     int nWeakLearner = *GetIntPnt(mxGetField(i_params, 0, "nWeakLearner"), 0, 0);
     int nData_ori = *GetIntPnt(mxGetField(i_params, 0, "nData"), 0, 0);
     int nPerClsSample = *GetIntPnt(mxGetField(i_params, 0, "nPerClsSample"), 0, 0);
@@ -219,6 +220,7 @@ void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray*
     
     // allocate mdls
     o_mdls.Resize(nWeakLearner, nRep);
+    
     // multiple binary classifiers or one multiclass classifier
     for(int rInd=0; rInd<nRep; ++rInd){
         // allocate zs, ws    
@@ -229,70 +231,59 @@ void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray*
         
         // init weight
         if(fBinary==1){
-            // balance weights of labels
-            int nPos = nPerClsSample; //FIXME: assumes positive data is smaller
+//             // balance weights of labels
+//             int nPos = nPerClsSample; //FIXME: assumes positive data is smaller
+//             
+//             // counts neg/pos
+//             vector<int> sampleInd;
+//             vector<int> posInd;
+//             vector<int> negInd;
+//             for(int dInd=0; dInd<nData_ori; ++dInd){
+//                 int clsLabel = (int)((*GetIntPnt(i_ys, dInd, 0)) != (rInd+1)) + 1;
+//                 if (clsLabel == 1)
+//                     // count positive
+//                     posInd.push_back(dInd);
+//                 else
+//                     // count negative
+//                     negInd.push_back(dInd);
+//             }
+//             
+//             // sample
+//             sampleInd = posInd;
+//             vector<int> randNegInd;
+//             GetRandPerm(0, negInd.size()-1, randNegInd);
+//             for(int i=0; i<nPos; ++i)
+//                 sampleInd.push_back(negInd[randNegInd[i]]);
+//             assert(sampleInd.size() == nData);
+//             printf("sampleSize: %d\n", sampleInd.size());
+//             
+//             // construct XMeta, ys
+//             vector<int> ixys_s;
+//             for(int sInd=0; sInd<sampleInd.size(); ++sInd){
+//                 // ys
+//                 ys.push_back(*GetIntPnt(i_ys, sampleInd[sInd], 0));
+//                 
+//                 // xMeta
+//                 ixys_s.push_back(i_x_meta.ixys[sampleInd[sInd]*3 + 0]);
+//                 ixys_s.push_back(i_x_meta.ixys[sampleInd[sInd]*3 + 1]);
+//                 ixys_s.push_back(i_x_meta.ixys[sampleInd[sInd]*3 + 2]);
+//             }
+//             x_meta.ixys = ixys_s;
             
-            // counts neg/pos
-            vector<int> sampleInd;
-            vector<int> posInd;
-            vector<int> negInd;
-            for(int dInd=0; dInd<nData_ori; ++dInd){
-                int clsLabel = (int)((*GetIntPnt(i_ys, dInd, 0)) != (rInd+1)) + 1;
-                if (clsLabel == 1)
-                    // count positive
-                    posInd.push_back(dInd);
-                else
-                    // count negative
-                    negInd.push_back(dInd);
-            }
-            
-            // sample
-            sampleInd = posInd;
-            vector<int> randNegInd;
-            GetRandPerm(0, negInd.size()-1, randNegInd);
-            for(int i=0; i<nPos; ++i)
-                sampleInd.push_back(negInd[randNegInd[i]]);
-            assert(sampleInd.size() == nData);
-            printf("sampleSize: %d\n", sampleInd.size());
             
             // construct XMeta, ys
             vector<int> ixys_s;
-            for(int sInd=0; sInd<sampleInd.size(); ++sInd){
+            for(int sInd=0; sInd<nData; ++sInd){
                 // ys
-                ys.push_back(*GetIntPnt(i_ys, sampleInd[sInd], 0));
+                ys.push_back(*GetIntPnt(i_ys, sInd, 0, rInd));
                 
                 // xMeta
-                ixys_s.push_back(i_x_meta.ixys[sampleInd[sInd]*3 + 0]);
-                ixys_s.push_back(i_x_meta.ixys[sampleInd[sInd]*3 + 1]);
-                ixys_s.push_back(i_x_meta.ixys[sampleInd[sInd]*3 + 2]);
+                ixys_s.push_back(i_x_meta.ixys[rInd*nData*3+sInd*3 + 0]);
+                ixys_s.push_back(i_x_meta.ixys[rInd*nData*3+sInd*3 + 1]);
+                ixys_s.push_back(i_x_meta.ixys[rInd*nData*3+sInd*3 + 2]);
             }
             x_meta.ixys = ixys_s;
-            
-                        
-//             for(int dInd=0; dInd<nData; ++dInd){
-//                 int clsLabel = (int)((*GetIntPnt(i_ys, dInd, 0)) != (rInd+1)) + 1;
-//                 if(clsLabel == 1){
-//                     ws.GetRef(dInd, 0) = nCls_ori-1; // zero base
-//                     ws.GetRef(dInd, 1) = nCls_ori-1; // zero base
-//                 }
-//             }   
-//             
-//             int dInd = -1;
-//             while(nNeg!=nPos){
-//                 dInd = (dInd+1)%nData;
-//                 if(ws.GetRef(dInd, 0) == 0 && ws.GetRef(dInd, 1) == 0)
-//                     continue;
-//                 
-//                 int clsLabel = (int)((*GetIntPnt(i_ys, dInd, 0)) != (rInd+1)) + 1;
-//                 
-// //                 if(clsLabel == 2 && rand()%(nCls_ori-1) == 0){ // negative
-//                 if(clsLabel == 2 && (*GetIntPnt(i_ys, dInd, 0)) != 4){
-//                     ws.GetRef(dInd, 0) = 0; // zero base
-//                     ws.GetRef(dInd, 1) = 0; // zero base
-//                     nNeg--;
-//                 }
-//             }
-//             assert(nPos == nNeg);
+    
         }
         else
         {
@@ -303,17 +294,18 @@ void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray*
         for(int dInd=0; dInd<nData; ++dInd){
             if(ys[dInd] == 0) // bg
                 continue;
-            int clsLabel;
-            if(fBinary==1){ //FIXME: not beautiful
-                clsLabel = (int)(ys[dInd] != (rInd+1)) + 1;
-            }else{
-                clsLabel = ys[dInd];
-            }
+//             int clsLabel;
+//             if(fBinary==1){ //FIXME: not beautiful
+//                 clsLabel = (int)(ys[dInd] != (rInd+1)) + 1;
+//             }else{
+//                 clsLabel = ys[dInd];
+//             }mex -g CXXFLAGS="\$CXXFLAGS -fopenmp" LDFLAGS="\$LDFLAGS -fopenmp" LearnSemSeg_mex.cpp
+            int clsLabel = ys[dInd];
             zs.GetRef(dInd, clsLabel-1) = 1; // zero base
         }           
 
         // train weak classifiers
-        char buf[1024];
+        
         Mat<double> hs(0, nData, nCls);
         for(int m=0; m<nWeakLearner; ++m){
             if(verbosity>=1 & m%100 == 0){

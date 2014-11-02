@@ -11,7 +11,7 @@ x_meta_mex.TBParams.LOFilterWH = int32(x_meta_mex.TBParams.LOFilterWH);
 x_meta_mex.TBParams.nTexton = int32(x_meta_mex.TBParams.nTexton);
 x_meta_mex.TBParams.parts = int32(x_meta_mex.TBParams.parts);
 % label
-label_mex = int32(label(:));
+label_mex = int32(label);
 % JBParams
 JBParams_mex = JBParams;
 JBParams_mex.nWeakLearner = int32(JBParams_mex.nWeakLearner);

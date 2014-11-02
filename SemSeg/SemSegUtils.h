@@ -94,10 +94,12 @@ double* GetDblPnt(const mxArray* i_m, int i_r, int i_c, int i_d=0){
     return ret;
 }
 
-int* GetIntPnt(const mxArray* i_m, int i_r, int i_c){
-    size_t nRows = mxGetM(i_m);
+int* GetIntPnt(const mxArray* i_m, int i_r, int i_c, int i_d=0){
+    const mwSize *pDims = mxGetDimensions(i_m);
+    size_t nRows = pDims[0];
+    size_t nCols = pDims[1];
     int *data = (int*)mxGetData(i_m);
-    int *ret = &data[i_r + i_c*nRows];
+    int *ret = &data[i_r + i_c*nRows + i_d*nRows*nCols];
     return ret;
 }
 
@@ -327,19 +329,24 @@ void ConvMXMeta2CXMeta(const mxArray* i_x_meta, struct XMeta &o_x_meta){
     ConvMTBParams2CTBParams(mxGetField(i_x_meta, 0, "TBParams"), o_x_meta.TBParams);
     // ixy
     mxArray* ixys = mxGetField(i_x_meta, 0, "ixy");
-    int M = mxGetM(ixys);
-    int N = mxGetN(ixys);
-    o_x_meta.ixys.resize(N*M);
     
+    
+//     int M = mxGetM(ixys);
+//     int N = mxGetN(ixys);
+//     o_x_meta.ixys.resize(N*M);
+    
+//     int *mxData = (int*) mxGetData(ixys);
+//     memcpy(o_x_meta.ixys.data(), mxData, N*M*sizeof(int));
+    
+    const mwSize nDims = mxGetNumberOfDimensions(ixys);
+    const mwSize* dims = mxGetDimensions(ixys);
+    mwSize numel = 1;
+    for(int i=0; i<nDims; ++i)
+        numel *= dims[i];
+    
+    o_x_meta.ixys.resize(numel);
     int *mxData = (int*) mxGetData(ixys);
-    memcpy(o_x_meta.ixys.data(), mxData, N*M*sizeof(int));
-    
-//     for(int j=0; j<N; ++j){
-//         for(int i=0; i<M; ++i){
-//             o_x_meta.ixys[i+j*M] = (*GetIntPnt(ixys, i, j));
-// //             o_x_meta.ixys.push_back(*GetIntPnt(ixys, i, j));
-//         }
-//     }
+    memcpy(o_x_meta.ixys.data(), mxData, numel*sizeof(int));
 }
 
 void SetMdlField(mxArray* o_mdl, double a, double b, int f, double theta, vector<double> &kc, vector<int> &S){

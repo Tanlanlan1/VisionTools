@@ -81,7 +81,7 @@ switch i_method
     case 'SLIC'
         %% set default values
         if ~isfield(i_params, 'regionSize')
-            i_params.regionSize = 20;
+            i_params.regionSize = 10;
         end
         if ~isfield(i_params, 'regularizer')
             i_params.regularizer = 0.1;

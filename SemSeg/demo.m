@@ -47,8 +47,10 @@ JBParams = struct(...
 
 if annotate
     % obtain annotations
-    img1 = imresize(imread('ted1.jpg'), resizeRatio);
-    img2 = imresize(imread('ted2.jpg'), resizeRatio);
+%     img1 = imresize(imread('ted1.jpg'), resizeRatio);
+%     img2 = imresize(imread('ted2.jpg'), resizeRatio);
+    img1 = imresize(imread('class1_d5.jpg'), resizeRatio);
+    img2 = imresize(imread('class2_d5.jpg'), resizeRatio);
     if exist('ann.mat', 'file') && saveAnnotation
         load('ann.mat');
     else
@@ -82,7 +84,7 @@ if annotate
             size(img1, 1), size(img1, 2));
         labels(1).cls(mask) = rInd;
     end
-    JBParams.nCls = size(rects, 1) + 1; % count bg %%FIXME: bg should be label 0?
+    JBParams.nCls = size(rects, 1) + 1; % count bg as a new class
     labels(1).cls(labels(1).cls == 0) = JBParams.nCls;
 else
     % load db
