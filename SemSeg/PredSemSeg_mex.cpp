@@ -123,6 +123,9 @@ mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     Mat<double> Hs(0, nData, nCls, nClsf);
     PredJointBoost(Hs, xMeta, mdls_cpp, i_params);
     
+    // reshape result
+//     Mat<double> Hs_resh(
+            
     // return
     mwSize sz[3];
     sz[0] = nData;

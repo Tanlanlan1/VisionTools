@@ -37,7 +37,7 @@ for cfInd=1:numel(pred)
 %     end
     cInd = cfInd;
     layerImg_c = zeros(size(trImg));
-    layerImg_c(repmat(trLabels.cls == cInd, [1 1 3])) = 1;
+    layerImg_c(logical(repmat(trLabels.cls(:, :, cInd), [1 1 3]))) = 1;
     layerImg = layerImg + bsxfun(@times, layerImg_c, reshape(lineCols(mod(cInd-1, nMaxColor)+1, :), [1 1 3]));
     clsColors(cInd, :) = lineCols(mod(cInd-1, nMaxColor)+1, :);
     

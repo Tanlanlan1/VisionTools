@@ -50,7 +50,7 @@ if ~isfield(i_params, 'verbosity')
     i_params.verbosity = 0;
 end
 if ~isfield(i_params, 'k')
-    i_params.k = 100;
+    i_params.k = 50;
 end
 if ~isfield(i_params, 'sigma')
     i_params.sigma = 0.8; %0.8
@@ -95,7 +95,7 @@ simFunctionHandles = {@SSSimColourTextureSizeFillOrig, @SSSimTextureSizeFill, @S
 
 %% Perform Selective Search
 o_prop = cell(nImg, 1);
-for iInd=1:nImg
+parfor iInd=1:nImg
     im = im2double(i_imgs{iInd});
     minSize = i_params.k;
     nPix = size(im, 1)*size(im, 2);

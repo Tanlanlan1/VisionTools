@@ -61,18 +61,21 @@ tbParams = i_params.feat;
 
 % buid meta data for FeatCBFunc and labels
 LOFilterWH_half = (i_params.feat.LOFilterWH-1)/2; 
-
-% pad
-if i_params.pad
-    for iInd=1:nImgs
-        % skip padding if there are precomputed results
-        if ~(isfield(i_imgs(iInd), 'Texton') || isfield(i_imgs(iInd), 'TextonBoostInt'))
-            i_imgs(iInd).img = padarray(i_imgs(iInd).img, [LOFilterWH_half(2) LOFilterWH_half(1) 0], 'symmetric', 'both');
-        end
-        i_labels(iInd).cls = padarray(i_labels(iInd).cls, [LOFilterWH_half(2) LOFilterWH_half(1) 0], 'symmetric', 'both');
-        
-    end
-end
+% 
+% % pad
+% if i_params.pad
+%     for iInd=1:nImgs
+%         % skip padding if there are precomputed results
+%         if ~(...
+% ...%                 isfield(i_imgs(iInd), 'Texture') || ...
+%                 isfield(i_imgs(iInd), 'Texton') || ...
+%                 isfield(i_imgs(iInd), 'TextonBoostInt'))
+%             i_imgs(iInd).img = padarray(i_imgs(iInd).img, [LOFilterWH_half(2) LOFilterWH_half(1) 0], 'symmetric', 'both');
+%         end
+%         i_labels(iInd).cls = padarray(i_labels(iInd).cls, [LOFilterWH_half(2) LOFilterWH_half(1) 0], 'symmetric', 'both');
+%         
+%     end
+% end
 assert(size(i_labels(1).cls, 1) == size(i_imgs(1).img, 1));
 assert(size(i_labels(1).cls, 2) == size(i_imgs(1).img, 2));
 
@@ -112,7 +115,9 @@ for iInd=1:nImgs
     
     % sampling data
     [ixy{iInd}, label{iInd}] = sampleData(i_params, iInd, [size(curImg.img, 2); size(curImg.img, 1)], i_labels(iInd));
-    
+%     if any(ixy{iInd} == 0)
+%         keyboard;
+%     end
 %     % build sampleMask %%FIXME: should be balanced across images also...
 %     sampleMask_jb = zeros(imgWH(2), imgWH(1)); 
 %     for cInd=0:nCls % include bg=0
@@ -199,47 +204,68 @@ nPerClsSample = i_params.nPerClsSample;
 nCls = i_params.classifier.nCls;
 LOFilterWH_half = (i_params.feat.LOFilterWH-1)/2;
 
-% falsify boundaries
-i_label.cls(1:LOFilterWH_half(2), :) = nan;
-i_label.cls(imgWH(2)-LOFilterWH_half(2):end, :) = nan;
-i_label.cls(:, 1:LOFilterWH_half(1)) = nan;
-i_label.cls(:, imgWH(1)-LOFilterWH_half(1):end, :) = nan;
+% % falsify boundaries
+% i_label.cls(1:LOFilterWH_half(2), :) = nan;
+% i_label.cls(imgWH(2)-LOFilterWH_half(2):end, :) = nan;
+% i_label.cls(:, 1:LOFilterWH_half(1)) = nan;
+% i_label.cls(:, imgWH(1)-LOFilterWH_half(1):end, :) = nan;
 
-% build sampleMask %%FIXME: should be balanced across images also...
-sampleMask_jb = zeros(imgWH(2), imgWH(1)); 
-for cInd=0:nCls % include bg=0
-    [rows, cols] = find(i_label.cls == cInd);
+
+%% randomly select positive points for each classes
+ixys = cell(1, nCls);
+label = cell(nCls, 1);
+for cInd=1:nCls % NOT include bg=0
+    [rows, cols] = find(i_label.cls(:, :, cInd));
     if isempty(rows)
         continue;
     end
 
     rndInd = randi(numel(rows), [nPerClsSample, 1]);
-    linInd = sub2ind(size(sampleMask_jb), rows(rndInd), cols(rndInd));
-    for tmp=1:numel(linInd) % should be updated sequencially
-        sampleMask_jb(linInd(tmp)) = sampleMask_jb(linInd(tmp)) + 1;
-    end
+    ixys{cInd} = [...
+        iInd*ones(1, nPerClsSample); ...
+        reshape(cols(rndInd), [1 nPerClsSample]); 
+        reshape(rows(rndInd), [1 nPerClsSample])];
+    label{cInd} = ones(nPerClsSample, 1)*cInd;
 end
-if i_params.verbosity >= 2
-    figure(2000); 
-    imagesc(sampleMask_jb);
-end
+ixys = cell2mat(ixys);
+label = cell2mat(label);
 
-% construct pixel location matrix
-xys = [];
-while true     
-    [rows, cols] = find(sampleMask_jb>=1);
-    if isempty(rows)
-        break;
-    end
-    sampleMask_jb(sampleMask_jb>=1) = sampleMask_jb(sampleMask_jb>=1) - 1;
-    xy = [cols'; rows']; % be careful the order
-    xys = [xys xy];    
-end
-ixys = [iInd*ones(1, size(xys, 2)); xys];
 
-% construct label
-linInd = sub2ind(size(i_label.cls), xys(2, :), xys(1, :));
-label = i_label.cls(linInd);
+% % build sampleMask %%FIXME: should be balanced across images also...
+% sampleMask_jb = zeros(imgWH(2), imgWH(1)); 
+% for cInd=1:nCls % NOT include bg=0
+%     [rows, cols] = find(i_label.cls(:, :, cInd));
+%     if isempty(rows)
+%         continue;
+%     end
+% 
+%     rndInd = randi(numel(rows), [nPerClsSample, 1]);
+%     linInd = sub2ind(size(sampleMask_jb), rows(rndInd), cols(rndInd));
+%     for tmp=1:numel(linInd) % should be updated sequencially
+%         sampleMask_jb(linInd(tmp)) = sampleMask_jb(linInd(tmp)) + 1;
+%     end
+% end
+% if i_params.verbosity >= 2
+%     figure(2000); 
+%     imagesc(sampleMask_jb);
+% end
+% 
+% % construct pixel location matrix
+% xys = [];
+% while true     
+%     [rows, cols] = find(sampleMask_jb>=1);
+%     if isempty(rows)
+%         break;
+%     end
+%     sampleMask_jb(sampleMask_jb>=1) = sampleMask_jb(sampleMask_jb>=1) - 1;
+%     xy = [cols'; rows']; % be careful the order
+%     xys = [xys xy];    
+% end
+% ixys = [iInd*ones(1, size(xys, 2)); xys];
+% 
+% % construct label
+% linInd = sub2ind([size(i_label.cls, 1), size(i_label.cls, 2)], xys(2, :), xys(1, :));
+% label = i_label.cls(linInd);
 
 %% return ixy and label
 if i_params.classifier.binary == 1 % select bg for each classes
@@ -248,11 +274,12 @@ if i_params.classifier.binary == 1 % select bg for each classes
     for cInd=1:nCls
         posInd = label == cInd;
         assert(sum(posInd) == nPerClsSample);
+        
         % add positives
         o_ixy(:, 1:nPerClsSample, cInd) = ixys(:, posInd);
         o_label(1:nPerClsSample, 1, cInd) = 1; % pos
         % add negatives
-        [rs, cs] = find(i_label.cls ~= cInd & ~isnan(i_label.cls));
+        [rs, cs] = find(~i_label.cls(:, :, cInd)); %& ~isnan(i_label.cls));
         rndInd = randi(numel(rs), [1, nPerClsSample]);
         o_ixy(:, nPerClsSample+1:end, cInd) = [iInd*ones(1, nPerClsSample); cs(rndInd)'; rs(rndInd)'];
         o_label(nPerClsSample+1:end, 1, cInd) = 2; % neg

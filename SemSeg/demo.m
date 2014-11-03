@@ -46,11 +46,13 @@ JBParams = struct(...
     'verbosity', verbosity);
 
 if annotate
-    % obtain annotations
+    
 %     img1 = imresize(imread('ted1.jpg'), resizeRatio);
 %     img2 = imresize(imread('ted2.jpg'), resizeRatio);
     img1 = imresize(imread('class1_d5.jpg'), resizeRatio);
     img2 = imresize(imread('class2_d5.jpg'), resizeRatio);
+    
+    % obtain annotations
     if exist('ann.mat', 'file') && saveAnnotation
         load('ann.mat');
     else
@@ -74,6 +76,7 @@ if annotate
         save('ann.mat', 'rects');
     end
     % construct data structure
+    nCls = size(rects, 1) + 1; % count bg as a new class
     imgs = struct('img', {img1, img2});
     labels = struct('cls', {zeros(size(img1, 1), size(img1, 2)), []}, 'depth', []);
     for rInd=1:size(rects, 1)
@@ -82,10 +85,13 @@ if annotate
             [rect(1) rect(1) rect(1)+rect(3)-1 rect(1)+rect(3)-1], ...
             [rect(2) rect(2)+rect(4)-1 rect(2)+rect(4)-1 rect(2)], ...
             size(img1, 1), size(img1, 2));
-        labels(1).cls(mask) = rInd;
+%         labels(1).cls(mask) = rInd;
+        labels(1).cls(:, :, rInd) = mask;
     end
-    JBParams.nCls = size(rects, 1) + 1; % count bg as a new class
-    labels(1).cls(labels(1).cls == 0) = JBParams.nCls;
+    labels(1).cls(:, :, nCls) = ~sum(labels(1).cls(:, :, 1:nCls-1), 3);    
+    
+    JBParams.nCls = nCls;
+%     labels(1).cls(labels(1).cls == 0) = JBParams.nCls;
 else
     % load db
     DBSt = load('DB/nyu_depth_v2_sample.mat');
