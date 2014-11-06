@@ -296,30 +296,49 @@ void ConvMXIntImgFeat2CIntImgFeat(const mxArray* i_intImgFeat, vector<struct Int
         int nCols = dims[1];
         int nDeps = dims[2];
         intImgFeat.feat.resize(nRows*nCols*nDeps);
-        
         // copy
         double *mxData = (double*)mxGetData(curIntImg);
         memcpy(intImgFeat.feat.data(), mxData, nRows*nCols*nDeps*sizeof(double));
-        
-//         for(int k=0; k<nDeps; ++k)
-//             for(int j=0; j<nCols; ++j)
-//                 for(int i=0; i<nRows; ++i){
-//                     intImgFeat.feat[i + j*nRows + k*nRows*nCols] = (*GetDblPnt(curIntImg, i, j, k));
-// //                     intImgFeat.feat.push_back(*GetDblPnt(curIntImg, i, j, k));
-//                 }
         intImgFeat.nRows = nRows;
         intImgFeat.nCols = nCols;
         intImgFeat.nDeps = nDeps;
-        
+        // save
         o_intImgFeat.push_back(intImgFeat);
     }
 }
 
+struct ixys{
+    vector<int> ixys_cls;
+};
+
 struct XMeta{
     vector<struct IntImgFeat> intImgFeat;
     struct TBParams TBParams;
-    vector<int> ixys;
+    vector<struct ixys> ixys;
 };
+// struct XMeta{
+//     vector<struct IntImgFeat> intImgFeat;
+//     struct TBParams TBParams;
+//     vector<int> ixys;
+// };
+
+void ConvMIXYS2CIXYS(const mxArray* i_ixys, vector<struct ixys> &o_ixys){
+    //init
+    int nCls = mxGetNumberOfElements(i_ixys);
+    o_ixys.resize(nCls);
+    // set vals
+    for(int cInd=0; cInd<nCls; ++cInd){
+        mxArray* ixys_cls_mx = mxGetField(i_ixys, cInd, "ixys_cls");
+        struct ixys ixys_cur;
+        int nElems = mxGetNumberOfElements(ixys_cls_mx);
+        ixys_cur.ixys_cls.resize(nElems);
+        int *mxData = (int*) mxGetData(ixys_cls_mx);
+        memcpy(ixys_cur.ixys_cls.data(), mxData, nElems*sizeof(int));   
+        // save
+        o_ixys[cInd] = ixys_cur;
+    }
+}
+
 
 void ConvMXMeta2CXMeta(const mxArray* i_x_meta, struct XMeta &o_x_meta){
     
@@ -328,25 +347,18 @@ void ConvMXMeta2CXMeta(const mxArray* i_x_meta, struct XMeta &o_x_meta){
     // TBParams
     ConvMTBParams2CTBParams(mxGetField(i_x_meta, 0, "TBParams"), o_x_meta.TBParams);
     // ixy
-    mxArray* ixys = mxGetField(i_x_meta, 0, "ixy");
+    ConvMIXYS2CIXYS(mxGetField(i_x_meta, 0, "ixy"), o_x_meta.ixys);
     
-    
-//     int M = mxGetM(ixys);
-//     int N = mxGetN(ixys);
-//     o_x_meta.ixys.resize(N*M);
-    
+//     // ixy
+//     mxArray* ixys = mxGetField(i_x_meta, 0, "ixy");
+//     const mwSize nDims = mxGetNumberOfDimensions(ixys);
+//     const mwSize* dims = mxGetDimensions(ixys);
+//     mwSize numel = 1;
+//     for(int i=0; i<nDims; ++i)
+//         numel *= dims[i];
+//     o_x_meta.ixys.resize(numel);
 //     int *mxData = (int*) mxGetData(ixys);
-//     memcpy(o_x_meta.ixys.data(), mxData, N*M*sizeof(int));
-    
-    const mwSize nDims = mxGetNumberOfDimensions(ixys);
-    const mwSize* dims = mxGetDimensions(ixys);
-    mwSize numel = 1;
-    for(int i=0; i<nDims; ++i)
-        numel *= dims[i];
-    
-    o_x_meta.ixys.resize(numel);
-    int *mxData = (int*) mxGetData(ixys);
-    memcpy(o_x_meta.ixys.data(), mxData, numel*sizeof(int));
+//     memcpy(o_x_meta.ixys.data(), mxData, numel*sizeof(int));
 }
 
 void SetMdlField(mxArray* o_mdl, double a, double b, int f, double theta, vector<double> &kc, vector<int> &S){
@@ -530,57 +542,6 @@ double CalcJwse_binary(Mat<double> &i_ws, Mat<double> &i_zs, vector<double> &i_x
     return ret;
 }
 
-
-// double GetithTextonBoost(int dInd, int fInd, const mxArray* i_x_meta){
-//     //i_tbParams.parts(:, i)      ith rectangle in the form of [xmin; xmax; ymin; ymax] 
-//     //x_meta = struct('ixy', int32(ixy), 'intImgFeat', double(feat), 'TBParams', TBParams);       
-//     
-//     // init
-//     mxArray* intImgFeat = mxGetField(i_x_meta, 0, "intImgFeat");
-//     mxArray* ixys = mxGetField(i_x_meta, 0, "ixy");
-//     mxArray* TBParams = mxGetField(i_x_meta, 0, "TBParams");
-//     
-//     int LOFWH[2];
-//     LOFWH[0] = (*GetIntPnt(mxGetField(TBParams, 0, "LOFilterWH"), 0, 0));
-//     LOFWH[1] = (*GetIntPnt(mxGetField(TBParams, 0, "LOFilterWH"), 1, 0));
-//     
-//     int nTextons = (*GetIntPnt(mxGetField(TBParams, 0, "nTexton"), 0, 0));
-//     
-//     int pInd = (int)floor(((double)fInd)/((double)nTextons)); // zero-base
-//     int tInd = fInd - pInd*nTextons; // zero-base
-//     int part[4];
-//     part[0] = (*GetIntPnt(mxGetField(TBParams, 0, "parts"), 0, pInd)) - 1; // zero-base 
-//     part[1] = (*GetIntPnt(mxGetField(TBParams, 0, "parts"), 1, pInd)) - 1; // zero-base
-//     part[2] = (*GetIntPnt(mxGetField(TBParams, 0, "parts"), 2, pInd)) - 1; // zero-base
-//     part[3] = (*GetIntPnt(mxGetField(TBParams, 0, "parts"), 3, pInd)) - 1; // zero-base
-//     
-//     int ixy[3];
-//     ixy[0] = (*GetIntPnt(ixys, 0, dInd))-1; // zero-base
-//     ixy[1] = (*GetIntPnt(ixys, 1, dInd))-1; // zero-base
-//     ixy[2] = (*GetIntPnt(ixys, 2, dInd))-1; // zero-base
-//     
-//     int LOF_tl[2];
-//     LOF_tl[0] = ixy[1] - ((int)(LOFWH[0]-1)/2);
-//     LOF_tl[1] = ixy[2] - ((int)(LOFWH[1]-1)/2);
-//             
-//     int xy_part_tl[2];
-//     xy_part_tl[0] = LOF_tl[0] + part[0];
-//     xy_part_tl[1] = LOF_tl[1] + part[2];
-//     
-//     int xy_part_br[2];
-//     xy_part_br[0] = LOF_tl[0] + part[1];
-//     xy_part_br[1] = LOF_tl[1] + part[3];
-//     
-//     // extract and return
-//     mxArray *curIntImg = mxGetField(intImgFeat, ixy[0], "feat");
-//     return (
-//             *GetDblPnt(curIntImg, xy_part_br[1]+1, xy_part_br[0]+1, tInd) - 
-//             *GetDblPnt(curIntImg, xy_part_tl[1]  , xy_part_br[0]+1, tInd) - 
-//             *GetDblPnt(curIntImg, xy_part_br[1]+1, xy_part_tl[0]  , tInd) + 
-//             *GetDblPnt(curIntImg, xy_part_tl[1]  , xy_part_tl[0]  , tInd))/
-//             ((xy_part_br[0] - xy_part_tl[0] + 1)*(xy_part_br[1] - xy_part_tl[1] + 1));
-// }
-
 double GetithTextonBoost(int dInd, int fInd, struct XMeta &i_x_meta){
     //i_tbParams.parts(:, i)      ith rectangle in the form of [xmin; xmax; ymin; ymax] 
     //x_meta = struct('ixy', int32(ixy), 'intImgFeat', double(feat), 'TBParams', TBParams);       
@@ -601,9 +562,12 @@ double GetithTextonBoost(int dInd, int fInd, struct XMeta &i_x_meta){
     part[3] = i_x_meta.TBParams.parts[3 + 4*pInd] - 1; // zero-base
     
     int ixy[3];
-    ixy[0] = i_x_meta.ixys[0 + 3*dInd] - 1; // zero-base
-    ixy[1] = i_x_meta.ixys[1 + 3*dInd] - 1; // zero-base
-    ixy[2] = i_x_meta.ixys[2 + 3*dInd] - 1; // zero-base
+//     ixy[0] = i_x_meta.ixys[0 + 3*dInd] - 1; // zero-base
+//     ixy[1] = i_x_meta.ixys[1 + 3*dInd] - 1; // zero-base
+//     ixy[2] = i_x_meta.ixys[2 + 3*dInd] - 1; // zero-base
+    ixy[0] = i_x_meta.ixys[0].ixys_cls[0 + 3*dInd] - 1; // zero-base
+    ixy[1] = i_x_meta.ixys[0].ixys_cls[1 + 3*dInd] - 1; // zero-base
+    ixy[2] = i_x_meta.ixys[0].ixys_cls[2 + 3*dInd] - 1; // zero-base
     
     int nIntImgRows = i_x_meta.intImgFeat[ixy[0]].nRows;
     int nIntImgCols = i_x_meta.intImgFeat[ixy[0]].nCols;

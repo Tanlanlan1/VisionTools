@@ -41,7 +41,7 @@ void PredJointBoost(Mat<double>& o_Hs, struct XMeta &i_xs_meta, Mat<JBMdl>& i_md
     int verbosity = *GetIntPnt(mxGetField(i_params, 0, "verbosity"), 0, 0);
     int nCls;
     if(fBinary==1) { //FIXME: duplicated
-        nCls = 2-1;
+        nCls = 2-1; //FIXME: no bg...
     }
     else{
         nCls = nCls_ori;

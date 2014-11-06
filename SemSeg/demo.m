@@ -12,9 +12,9 @@ end
 annotate = true;
 saveAnnotation = true;
 verbosity = 1;
-nPerClsSample = 500;
+nPerClsSample = 1000;
 resizeRatio = 1;
-
+scales = 0.5:0.25:2;
 
 if annotate
     trainInd = 1;
@@ -46,12 +46,9 @@ JBParams = struct(...
     'verbosity', verbosity);
 
 if annotate
-    
-%     img1 = imresize(imread('ted1.jpg'), resizeRatio);
-%     img2 = imresize(imread('ted2.jpg'), resizeRatio);
+    % read images
     img1 = imresize(imread('class1_d5.jpg'), resizeRatio);
     img2 = imresize(imread('class2_d5.jpg'), resizeRatio);
-    
     % obtain annotations
     if exist('ann.mat', 'file') && saveAnnotation
         load('ann.mat');
@@ -75,23 +72,67 @@ if annotate
         end
         save('ann.mat', 'rects');
     end
-    % construct data structure
     nCls = size(rects, 1) + 1; % count bg as a new class
-    imgs = struct('img', {img1, img2});
-    labels = struct('cls', {zeros(size(img1, 1), size(img1, 2)), []}, 'depth', []);
-    for rInd=1:size(rects, 1)
-        rect = rects(rInd, :);
-        mask = poly2mask(...
-            [rect(1) rect(1) rect(1)+rect(3)-1 rect(1)+rect(3)-1], ...
-            [rect(2) rect(2)+rect(4)-1 rect(2)+rect(4)-1 rect(2)], ...
-            size(img1, 1), size(img1, 2));
-%         labels(1).cls(mask) = rInd;
-        labels(1).cls(:, :, rInd) = mask;
+    % duplicate images and construct scale space for training
+    imgs_train = struct('img', [], 'scale', [], 'pivot', []);
+    nW_train = 2;
+    nH_train = 2;
+    for iInd1=1:nH_train
+        for iInd2=1:nW_train
+            for sInd=1:numel(scales)
+                imgs_train(iInd1, iInd2, sInd).img = imresize(img1, scales(sInd));
+                imgs_train(iInd1, iInd2, sInd).scale = scales(sInd);
+                imgs_train(iInd1, iInd2, sInd).pivot = scales(sInd) == 1;
+            end
+        end
     end
-    labels(1).cls(:, :, nCls) = ~sum(labels(1).cls(:, :, 1:nCls-1), 3);    
+    % select only target scale
+    imgs_train = imgs_train(:, :, scales == 1);
+    % duplicate images and construct scale space for test
+    imgs_test = struct('img', [], 'scale', [], 'pivot', []);
+    nW = 1;
+    nH = 1;
+    for iInd1=1:nH
+        for iInd2=1:nW
+            for sInd=1:numel(scales)
+                imgs_test(iInd1, iInd2, sInd).img = imresize(img2, scales(sInd));
+                imgs_test(iInd1, iInd2, sInd).scale = scales(sInd);
+                imgs_test(iInd1, iInd2, sInd).pivot = scales(sInd) == 1;
+            end
+        end
+    end
+    % construct label structure for training
+    labels = struct('cls', [], 'depth', []);
+    for iInd=1:numel(imgs_train)
+        curImg = imgs_train(iInd).img;
+        labels(iInd).cls = zeros(size(curImg, 1), size(curImg, 2), nCls);
+        if imgs_train(iInd).scale == 1 % select only target scale
+            for rInd=1:size(rects, 1)
+                rect = rects(rInd, :);
+                mask = poly2mask(...
+                    [rect(1) rect(1) rect(1)+rect(3)-1 rect(1)+rect(3)-1], ...
+                    [rect(2) rect(2)+rect(4)-1 rect(2)+rect(4)-1 rect(2)], ...
+                    size(curImg, 1), size(curImg, 2));
+                labels(iInd).cls(:, :, rInd) = mask;
+            end
+        end
+        labels(iInd).cls(:, :, nCls) = ~sum(labels(iInd).cls(:, :, 1:nCls-1), 3);    
+    end
+    labels = reshape(labels, size(imgs_train));
     
-    JBParams.nCls = nCls;
-%     labels(1).cls(labels(1).cls == 0) = JBParams.nCls;
+    
+%     imgs = struct('img', {img1, img2});
+%     labels = struct('cls', {zeros(size(img1, 1), size(img1, 2), nCls), []}, 'depth', []);
+%     for rInd=1:size(rects, 1)
+%         rect = rects(rInd, :);
+%         mask = poly2mask(...
+%             [rect(1) rect(1) rect(1)+rect(3)-1 rect(1)+rect(3)-1], ...
+%             [rect(2) rect(2)+rect(4)-1 rect(2)+rect(4)-1 rect(2)], ...
+%             size(img1, 1), size(img1, 2));
+%         labels(1).cls(:, :, rInd) = mask;
+%     end
+%     labels(1).cls(:, :, nCls) = ~sum(labels(1).cls(:, :, 1:nCls-1), 3);    
+    
 else
     % load db
     DBSt = load('DB/nyu_depth_v2_sample.mat');
@@ -109,29 +150,30 @@ else
             labels(lInd).cls(ind) = cInd;
         end
         labels(lInd).depth = DBSt.depths(:, :, lInd);
-    end
-    JBParams.nCls = nCls;
+    end    
 end
 
+JBParams.nCls = nCls;
 SemSegParams = struct(...
     'pad', true, ...
     'feat', TBParams, ...
     'nPerClsSample', nPerClsSample, ...
     'classifier', JBParams, ...
     'mdlRects', rects,...
-    'scales', 0.5:0.25:2, ...
+    'scales', scales, ...
     'supPix', 1, ...
     'verbosity', 1);
 
 %% learn
-[mdls, params_learn] = LearnSemSeg(imgs(trainInd), labels(trainInd), SemSegParams); %%FIXME: learning in scale space
+[mdls, params_learn] = LearnSemSeg(imgs_train, labels, SemSegParams); %%FIXME: learning in scale space
 
 %% predict
 assert(any(SemSegParams.scales == 1));
-[pred, params_pred] = PredSemSeg(imgs(testInd), mdls, params_learn);
+[pred, params_pred] = PredSemSeg(imgs_test, mdls, params_learn);
 
 %% show
-showPred( pred, params_pred, imgs(trainInd).img, labels(trainInd), imgs(testInd).img );
+showPred( pred, params_pred, imgs_train, labels, imgs_test );
+% showPred( pred, params_pred, imgs_train(1).img, labels(1), imgs_test([imgs_test(:).pivot]).img );
 
 %%
 fprintf('* Total time: %s\n', num2str(toc(totTic)));

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <deployment-project plugin="plugin.matlabcoder" plugin-version="R2013a">
-  <configuration target="target.matlab.coder" target-name="MEX, C, and C++ Code Generation" name="reshapePredResponse" location="/home/sangdonp/UPenn/Research/VisionTools/SemSeg" file="/home/sangdonp/UPenn/Research/VisionTools/SemSeg/reshapePredResponse.prj" build-checksum="983264735">
+  <configuration target="target.matlab.coder" target-name="MEX, C, and C++ Code Generation" name="reshapePredResponse" location="/home/sangdonp/UPenn/Research/VisionTools_ongoing/SemSeg" file="/home/sangdonp/UPenn/Research/VisionTools_ongoing/SemSeg/reshapePredResponse.prj" build-checksum="3490558280">
     <profile key="profile.mex">
       <param.MergeInstrumentationResults>false</param.MergeInstrumentationResults>
       <param.BuiltInstrumentedMex>false</param.BuiltInstrumentedMex>
@@ -277,7 +277,7 @@
     <param.outputfile>${PROJECT_ROOT}/reshapePredResponse_mex.mexa64</param.outputfile>
     <param.version>R2012a</param.version>
     <param.HasECoderFeatures>false</param.HasECoderFeatures>
-    <param.mex.mainhtml>/data/extern/sangdonp/objectDetection/HSDPM/test/html/index.html</param.mex.mainhtml>
+    <param.mex.mainhtml />
     <param.grt.mainhtml>/data/extern/sangdonp/objectDetection/HSDPM/test_lib/html/index.html</param.grt.mainhtml>
     <param.CallGeneratedCodeFromTest>true</param.CallGeneratedCodeFromTest>
     <param.DefaultTestFile />
@@ -384,14 +384,6 @@
             <UserDefined>true</UserDefined>
             <Complex>false</Complex>
           </Input>
-          <Input Name="i_nScales">
-            <Class>double</Class>
-            <Size>1 x 1</Size>
-            <Value>i_params_classifier_binary</Value>
-            <InitialValue />
-            <UserDefined>true</UserDefined>
-            <Complex>false</Complex>
-          </Input>
           <Input Name="i_ixy">
             <Class>double</Class>
             <Size>3 x :inf</Size>
@@ -465,7 +457,7 @@
     <fileset.testbench />
     <fileset.package />
     <build-deliverables>
-      <file name="reshapePredResponse_mex.mexa64" location="/home/sangdonp/UPenn/Research/VisionTools/SemSeg" optional="false">/home/sangdonp/UPenn/Research/VisionTools/SemSeg/reshapePredResponse_mex.mexa64</file>
+      <file name="reshapePredResponse_mex.mexa64" location="/home/sangdonp/UPenn/Research/VisionTools_ongoing/SemSeg" optional="false">/home/sangdonp/UPenn/Research/VisionTools_ongoing/SemSeg/reshapePredResponse_mex.mexa64</file>
     </build-deliverables>
     <workflow />
     <matlab>

@@ -207,7 +207,7 @@ void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray*
     if(fBinary==1) { //FIXME: duplicated
         nRep = nCls_ori;
         nCls = 2;
-        nData = nPerClsSample*2;
+//         nData = nPerClsSample*2; // can be varying depending on the class
         if(learnBG == 0)
             nRep--;
     }
@@ -223,83 +223,46 @@ void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray*
     
     // multiple binary classifiers or one multiclass classifier
     for(int rInd=0; rInd<nRep; ++rInd){
-        // allocate zs, ws    
-        Mat<double> zs(-1, nData, nCls);    
-        Mat<double> ws(1, nData, nCls);
-        struct XMeta x_meta = i_x_meta;
-        vector<int> ys;
         
-        // init weight
-        if(fBinary==1){
-//             // balance weights of labels
-//             int nPos = nPerClsSample; //FIXME: assumes positive data is smaller
-//             
-//             // counts neg/pos
-//             vector<int> sampleInd;
-//             vector<int> posInd;
-//             vector<int> negInd;
-//             for(int dInd=0; dInd<nData_ori; ++dInd){
-//                 int clsLabel = (int)((*GetIntPnt(i_ys, dInd, 0)) != (rInd+1)) + 1;
-//                 if (clsLabel == 1)
-//                     // count positive
-//                     posInd.push_back(dInd);
-//                 else
-//                     // count negative
-//                     negInd.push_back(dInd);
-//             }
-//             
-//             // sample
-//             sampleInd = posInd;
-//             vector<int> randNegInd;
-//             GetRandPerm(0, negInd.size()-1, randNegInd);
-//             for(int i=0; i<nPos; ++i)
-//                 sampleInd.push_back(negInd[randNegInd[i]]);
-//             assert(sampleInd.size() == nData);
-//             printf("sampleSize: %d\n", sampleInd.size());
-//             
-//             // construct XMeta, ys
+        // init XMeta, ys
+        struct XMeta x_meta = i_x_meta; //FIXME: can be inefficient
+        vector<int> ys; //FIXME: can be inefficient
+        if(fBinary==1){           
+            // reconstruct XMeta
+            x_meta.ixys[0] = x_meta.ixys[rInd]; //FIXME: can make bugs...
+            // reconstruct ys
+            mxArray *ys_rInd = mxGetField(i_ys, rInd, "labels_cls");
+            int* ys_rInd_data = (int*)mxGetData(ys_rInd);
+            size_t nElems = mxGetNumberOfElements(ys_rInd);
+            ys.resize(nElems);
+            memcpy(ys.data(), ys_rInd_data, nElems*sizeof(int));
+            // update nData since it's vary depending on the class
+            nData = nElems;
+            
 //             vector<int> ixys_s;
-//             for(int sInd=0; sInd<sampleInd.size(); ++sInd){
+//             for(int sInd=0; sInd<nData; ++sInd){
 //                 // ys
-//                 ys.push_back(*GetIntPnt(i_ys, sampleInd[sInd], 0));
+//                 ys.push_back(*GetIntPnt(i_ys, sInd, 0, rInd));
 //                 
 //                 // xMeta
-//                 ixys_s.push_back(i_x_meta.ixys[sampleInd[sInd]*3 + 0]);
-//                 ixys_s.push_back(i_x_meta.ixys[sampleInd[sInd]*3 + 1]);
-//                 ixys_s.push_back(i_x_meta.ixys[sampleInd[sInd]*3 + 2]);
+//                 ixys_s.push_back(i_x_meta.ixys[rInd*nData*3+sInd*3 + 0]);
+//                 ixys_s.push_back(i_x_meta.ixys[rInd*nData*3+sInd*3 + 1]);
+//                 ixys_s.push_back(i_x_meta.ixys[rInd*nData*3+sInd*3 + 2]);
 //             }
 //             x_meta.ixys = ixys_s;
-            
-            
-            // construct XMeta, ys
-            vector<int> ixys_s;
-            for(int sInd=0; sInd<nData; ++sInd){
-                // ys
-                ys.push_back(*GetIntPnt(i_ys, sInd, 0, rInd));
-                
-                // xMeta
-                ixys_s.push_back(i_x_meta.ixys[rInd*nData*3+sInd*3 + 0]);
-                ixys_s.push_back(i_x_meta.ixys[rInd*nData*3+sInd*3 + 1]);
-                ixys_s.push_back(i_x_meta.ixys[rInd*nData*3+sInd*3 + 2]);
-            }
-            x_meta.ixys = ixys_s;
     
         }
         else
         {
-            assert(0);//FIXME:
+            assert(0);//FIXME: not yet implemented
         }
-        
+        // allocate zs, ws    
+        Mat<double> zs(-1, nData, nCls);    
+        Mat<double> ws(1, nData, nCls);
         // init labels
         for(int dInd=0; dInd<nData; ++dInd){
             if(ys[dInd] == 0) // bg
                 continue;
-//             int clsLabel;
-//             if(fBinary==1){ //FIXME: not beautiful
-//                 clsLabel = (int)(ys[dInd] != (rInd+1)) + 1;
-//             }else{
-//                 clsLabel = ys[dInd];
-//             }mex -g CXXFLAGS="\$CXXFLAGS -fopenmp" LDFLAGS="\$LDFLAGS -fopenmp" LearnSemSeg_mex.cpp
             int clsLabel = ys[dInd];
             zs.GetRef(dInd, clsLabel-1) = 1; // zero base
         }           

@@ -1,7 +1,8 @@
 function [x_meta_mex, label_mex, JBParams_mex] = convParamsType(x_meta, label, JBParams)
 x_meta_mex = x_meta;
 % x_meta.ixy
-x_meta_mex.ixy = int32(x_meta_mex.ixy);
+% x_meta_mex.ixy = int32(x_meta_mex.ixy);
+x_meta_mex.ixy = arrayfun(@(x) structfun(@int32, x, 'UniformOutput', false), x_meta_mex.ixy);
 % x_meta.intImgfeat
 for iInd=1:numel(x_meta_mex.intImgFeat)
     x_meta_mex.intImgFeat(iInd).TextonIntImg = double(x_meta_mex.intImgFeat(iInd).TextonIntImg);
@@ -11,7 +12,8 @@ x_meta_mex.TBParams.LOFilterWH = int32(x_meta_mex.TBParams.LOFilterWH);
 x_meta_mex.TBParams.nTexton = int32(x_meta_mex.TBParams.nTexton);
 x_meta_mex.TBParams.parts = int32(x_meta_mex.TBParams.parts);
 % label
-label_mex = int32(label);
+label_mex = arrayfun(@(x) structfun(@int32, x, 'UniformOutput', false), label);
+% label_mex = int32(label);
 % JBParams
 JBParams_mex = JBParams;
 JBParams_mex.nWeakLearner = int32(JBParams_mex.nWeakLearner);

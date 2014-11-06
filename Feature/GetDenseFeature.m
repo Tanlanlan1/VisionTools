@@ -93,6 +93,10 @@ for cInd=1:numel(i_cues)
 %             [o_feat{cInd}, o_params] = GetTextonFeature(imgs, i_params);
             [o_feat, o_params] = GetTextonFeature(imgs, i_params);
             
+        case 'TextonBoostInit'
+            o_feat = [];
+            o_params = InitTextonBoostParts(i_params);
+            
         case 'TextonBoost'
 %             [o_feat{cInd}, o_params] = GetTextonBoostFeature(imgs, i_params);
             [o_feat, o_params] = GetTextonBoostFeature(imgs, i_params);
@@ -344,6 +348,43 @@ end
 
 end
 
+function [o_params] = InitTextonBoostParts(i_params)
+assert(isfield(i_params, 'nPart'));
+assert(isfield(i_params, 'LOFilterWH'));
+if mod(i_params.LOFilterWH(1), 1) ~= 0
+    if i_params.verbosity >= 1
+        warning('non-integer width of a layout filter. Will be floored');
+    end
+    i_params.LOFilterWH(1) = floor(i_params.LOFilterWH(1));
+end
+if mod(i_params.LOFilterWH(2), 1) ~= 0
+    if i_params.verbosity >= 1
+        warning('non-integer height of a layout filter. Will be floored');
+    end
+    i_params.LOFilterWH(2) = floor(i_params.LOFilterWH(2));
+end
+
+if mod(i_params.LOFilterWH(1), 2) == 0
+    if i_params.verbosity >= 1
+        warning('even width of a layout filter. Will be modified to be odd');
+    end
+    i_params.LOFilterWH(1) = i_params.LOFilterWH(1) - 1;
+end
+if mod(i_params.LOFilterWH(2), 2) == 0
+    if i_params.verbosity >= 1
+        warning('even height of a layout filter. Will be modified to be odd');
+    end
+    i_params.LOFilterWH(2) = i_params.LOFilterWH(2) - 1;
+end
+
+%% init parts
+i_params.parts = GenTextonBoostParts(i_params);
+
+%% return
+o_params = i_params;
+
+end
+
 function [o_feats, o_params] = GetTextonBoostIntFeature(i_imgs, i_params)
 
 %% init
@@ -390,10 +431,12 @@ end
 params = i_params;
 nTexton = i_params.nTexton;
 
-%% generate parts
-if ~isfield(params, 'parts')
-    params.parts = GenTextonBoostParts(params);
-end
+
+assert(isfield(params, 'parts'));
+% %% generate parts
+% if ~isfield(params, 'parts')
+%     params.parts = GenTextonBoostParts(params);
+% end
 
 %% obtain Texton features
 textonFeats = i_imgs;
