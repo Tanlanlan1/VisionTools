@@ -32,6 +32,10 @@ for iInd1=1:size(teImgs, 1)
                     break;
                 end
             end
+            if isempty(trImg)
+                % the object does not exist in given training images
+                continue;
+            end
             assert(~isempty(trImg));
 
             %% show an example training image

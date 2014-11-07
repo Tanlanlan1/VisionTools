@@ -83,11 +83,16 @@ for cInd=1:numel(i_cues)
             
         case 'Texture_LM'
             assert(~iscell(imgs));
-            o_feat = GetTextureLMFeature(imgs);
+            o_feat = GetTextureLMFeature(imgs, i_params);
+            o_params = i_params;
              
         case 'Texture_MR8'
 %             img = rgb2gray(img);
             o_feat = GetTextureMR8Feature(imgs);
+            
+        case 'TextonInit'
+            o_feat = [];
+            [o_params] = GetTexton(imgs, i_params);
             
         case 'Texton'
 %             [o_feat{cInd}, o_params] = GetTextonFeature(imgs, i_params);
@@ -139,11 +144,21 @@ function [o_feat] = GetLabDenseFeature(i_img)
 o_feat = applycform(i_img, makecform('srgb2lab'));
 end
 
-function [o_feat, o_filterBank] = GetTextureLMFeature(i_img)
-
+function [o_feat, o_filterBank] = GetTextureLMFeature(i_img, i_params)
 nImgs = numel(i_img);
 Fs = makeLMfilters;
 o_feat = i_img;
+o_filterBank = Fs;
+verbosity = i_params.verbosity;
+% check precomputed results
+if isfield(i_img, 'Texture')
+    return;
+end
+if verbosity >= 1
+    sTic = tic;
+    fprintf('* obtain texture information...');
+end
+% compute
 for i=1:nImgs
     img = rgb2gray(i_img(i).img);
     img_pad = padarray(img, [(size(Fs, 1)-1)/2 (size(Fs, 2)-1)/2], 'symmetric', 'both');
@@ -153,18 +168,15 @@ for i=1:nImgs
     end
     o_feat(i).Texture = responses;
 end
-o_filterBank = Fs;
-
-
-% img = rgb2gray(i_img);
-% Fs = makeLMfilters;
-% img_pad = padarray(img, [(size(Fs, 1)-1)/2 (size(Fs, 2)-1)/2], 'symmetric', 'both');
-% responses = zeros(size(img, 1), size(img, 2), size(Fs, 3));
-% for fInd=1:size(Fs, 3)
-%     responses(:, :, fInd) = conv2(img_pad, Fs(:, :, fInd), 'valid'); % symetric filters, so don't need to flip
-% end
-% o_feat = responses;
-% o_filterBank = Fs;
+% add also colors 
+%%FIXME: not good...
+for iInd=1:nImgs 
+    % add colors
+    o_feat(iInd).Texture = cat(3, o_feat(iInd).Texture, GetRGBDenseFeature(o_feat(iInd).img));
+end
+if verbosity >= 1
+    fprintf('done (%s sec.)\n', num2str(toc(sTic)));
+end
 end
 
 function [o_feat] = GetTextureMR8Feature(i_img)
@@ -183,7 +195,7 @@ end
 
 end
 
-function [o_feats, o_params] = GetTextonFeature(i_imgs, i_params)
+function [o_params] = GetTexton(i_imgs, i_params)
 %% check i_params
 assert(isfield(i_params, 'nTexton'));
 nTexton = i_params.nTexton;
@@ -192,55 +204,24 @@ if ~isfield(i_params, 'samplingRatio')
     i_params.samplingRatio = 1;
 end
 samplingRatio = i_params.samplingRatio;
-
-if ~isfield(i_params, 'nNN')
-    i_params.nNN = max(1, round(i_params.nTexton*0.1));
-end
-nNN = i_params.nNN;
-
 verbosity = i_params.verbosity;
-
-
-% if iscell(i_imgs)
-%     nImg = numel(i_imgs);
-%     cellFlag = true;
-% else
-%     i_imgs = {i_imgs};
-%     nImg = 1;
-%     cellFlag = false;
-% end
 nImgs = numel(i_imgs);
-
-% %% construct image pyramid
-% if verbosity >= 1
-%     disp('* construct an image pyramid');
-% end
-% img_py = cell(nImg, nScale);
-% for iInd=1:nImg
-%     for sInd=1:nScale
-%         img_py{iInd, sInd} = imresize(i_imgs{iInd}, scales(sInd));
-%     end
-% end
-
 feats = i_imgs;
 %% obtain texture
-if verbosity >= 1
-    disp('* obtain texture information');
-end
-
 if ~isfield(i_imgs, 'Texture')
-    [feats, fb] = GetTextureLMFeature(feats);
-%     feats = GetTextureMR8Feature(feats);
-    for iInd=1:nImgs %%FIXME: not good...
-        % add colors
-        feats(iInd).Texture = cat(3, feats(iInd).Texture, GetRGBDenseFeature(feats(iInd).img));
-    end
+    [feats, fb] = GetTextureLMFeature(feats, i_params);
+% %     feats = GetTextureMR8Feature(feats);
+%     for iInd=1:nImgs %%FIXME: not good...
+%         % add colors
+%         feats(iInd).Texture = cat(3, feats(iInd).Texture, GetRGBDenseFeature(feats(iInd).img));
+%     end
 end
 
 %% extract textons if not exist
 if ~isfield(i_params, 'textons') || isempty(i_params.textons)
     if verbosity >= 1
-        fprintf('* extract textons');
+        sTic = tic;
+        fprintf('* extract textons...');
     end
     data = cell(1, nImgs);
     for iInd=1:nImgs
@@ -251,39 +232,27 @@ if ~isfield(i_params, 'textons') || isempty(i_params.textons)
     end
     data = cell2mat(data);
     if verbosity >= 1
-        fprintf(' from %d data\n', size(data, 2));
+        fprintf('from %d data...', size(data, 2));
     end
     textons = vl_kmeans(data, nTexton, 'Algorithm', 'Elkan');
     kdtree = vl_kdtreebuild(textons); % L2 distance
+
+    if verbosity >= 1
+        fprintf('done (%s sec.)\n', num2str(toc(sTic)));
+    end
+    
 else
     textons = i_params.textons;
     kdtree = i_params.kdtree;
 end
 
-%% obtain texton features
-% feats = struct('feat', []);
-% feats(nImgs) = feats;
+%% return
+o_params = i_params;
+o_params.textons = textons;
+o_params.kdtree = kdtree;
 
-if ~isfield(i_imgs, 'Texton')
-    for iInd=1:nImgs
-        curTexture = feats(iInd).Texture;
-        curTexture_q = reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])';
-
-        [IND, DIST] = vl_kdtreequery(kdtree, textons, curTexture_q, 'numNeighbors', nNN);
-        textonImg = zeros(size(curTexture, 1), size(curTexture, 2), nTexton);
-        for nnInd=1:nNN
-            [cols, rows] = meshgrid(1:size(textonImg, 2), 1:size(textonImg, 1));
-            linInd = sub2ind(size(textonImg), rows(:), cols(:), double(IND(nnInd, :))');
-            textonImg(linInd) = exp(-DIST(nnInd, :));
-        end
-        feats(iInd).Texton = textonImg;
-    end
-end
-
-%% visualize
 if verbosity >= 2
     % textons
-    
     fb_c = cell(size(fb, 3), 1);
     for i=1:size(fb, 3)
         fb_c{i} = fb(:, :, i);
@@ -294,6 +263,115 @@ if verbosity >= 2
     figure(71683); clf;
     montage(imgarray, 'DisplayRange', [min(imgarray(:)), max(imgarray(:))]);
     axis image; colorbar;
+end
+end
+
+function [o_feats, o_params] = GetTextonFeature(i_imgs, i_params)
+% %% check i_params
+% assert(isfield(i_params, 'nTexton'));
+% nTexton = i_params.nTexton;
+% 
+% if ~isfield(i_params, 'samplingRatio')
+%     i_params.samplingRatio = 1;
+% end
+% samplingRatio = i_params.samplingRatio;
+
+if ~isfield(i_params, 'nNN')
+    i_params.nNN = max(1, round(i_params.nTexton*0.1));
+end
+nNN = i_params.nNN;
+verbosity = i_params.verbosity;
+nImgs = numel(i_imgs);
+feats = i_imgs;
+nTexton = i_params.nTexton;
+%% extract textons
+i_params = GetTexton(i_imgs, i_params);
+textons = i_params.textons;
+kdtree = i_params.kdtree;
+    
+% %% obtain texture
+% if verbosity >= 1
+%     disp('* obtain texture information');
+% end
+% 
+% if ~isfield(i_imgs, 'Texture')
+%     [feats, fb] = GetTextureLMFeature(feats);
+% %     feats = GetTextureMR8Feature(feats);
+%     for iInd=1:nImgs %%FIXME: not good...
+%         % add colors
+%         feats(iInd).Texture = cat(3, feats(iInd).Texture, GetRGBDenseFeature(feats(iInd).img));
+%     end
+% end
+% 
+% %% extract textons if not exist
+% if ~isfield(i_params, 'textons') || isempty(i_params.textons)
+%     if verbosity >= 1
+%         fprintf('* extract textons');
+%     end
+%     data = cell(1, nImgs);
+%     for iInd=1:nImgs
+%         curTexture = feats(iInd).Texture;
+%         data_is = reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])';
+%         step = round(1/samplingRatio);
+%         data{iInd} = data_is(:, 1:step:end);
+%     end
+%     data = cell2mat(data);
+%     if verbosity >= 1
+%         fprintf(' from %d data\n', size(data, 2));
+%     end
+%     textons = vl_kmeans(data, nTexton, 'Algorithm', 'Elkan');
+%     kdtree = vl_kdtreebuild(textons); % L2 distance
+% else
+%     textons = i_params.textons;
+%     kdtree = i_params.kdtree;
+% end
+
+%% obtain texton features
+% feats = struct('feat', []);
+% feats(nImgs) = feats;
+
+if ~isfield(i_imgs, 'Texton')
+    if verbosity >= 1
+        sTic = tic;
+        fprintf('* obtain texton features...');
+    end
+    feats_added = cell(numel(feats), 1);
+    for iInd=1:nImgs
+        curFeat = feats(iInd);
+        curTexture = curFeat.Texture;
+        curTexture_q = reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])';
+
+        [IND, DIST] = vl_kdtreequery(kdtree, textons, curTexture_q, 'numNeighbors', nNN);
+        textonImg = zeros(size(curTexture, 1), size(curTexture, 2), nTexton);
+        for nnInd=1:nNN
+            [cols, rows] = meshgrid(1:size(textonImg, 2), 1:size(textonImg, 1));
+            linInd = sub2ind(size(textonImg), rows(:), cols(:), double(IND(nnInd, :))');
+            textonImg(linInd) = exp(-DIST(nnInd, :));
+        end
+        curFeat.Texton = textonImg;
+        feats_added{iInd} = curFeat;
+    end
+    feats = reshape(cell2mat(feats_added), size(i_imgs));
+    
+    if verbosity >= 1
+        fprintf('done (%s sec.)\n', num2str(toc(sTic)));
+    end
+end
+
+
+%% visualize
+if verbosity >= 2
+%     % textons
+%     fb_c = cell(size(fb, 3), 1);
+%     for i=1:size(fb, 3)
+%         fb_c{i} = fb(:, :, i);
+%     end
+%     [tim, tperm] = visTextons(textons, fb_c);
+%     resp_norm = cellfun(@(r) 0.01*r./max(abs(r(:))), tim(tperm), 'UniformOutput', false);
+%     imgarray = cell2mat(reshape(resp_norm, [1 1 1 nTexton]));
+%     figure(71683); clf;
+%     montage(imgarray, 'DisplayRange', [min(imgarray(:)), max(imgarray(:))]);
+%     axis image; colorbar;
 
     % texton feature
     riInd = randi(nImgs, 1);
@@ -305,13 +383,10 @@ if verbosity >= 2
 end
 
 %% return
-% if ~cellFlag
-%     feat = cell2mat(feat);
-% end
 o_feats = feats;
 o_params = i_params;
-o_params.textons = textons;
-o_params.kdtree = kdtree;
+% o_params.textons = textons;
+% o_params.kdtree = kdtree;
 
 
 end
@@ -391,15 +466,7 @@ function [o_feats, o_params] = GetTextonBoostIntFeature(i_imgs, i_params)
 assert(isfield(i_params, 'nPart'));
 assert(isfield(i_params, 'nTexton'));
 assert(isfield(i_params, 'LOFilterWH'));
-
-% if iscell(i_imgs)
-%     nImg = numel(i_imgs);
-%     cellFlag = true;
-% else
-%     i_imgs = {i_imgs};
-%     nImg = 1;
-%     cellFlag = false;
-% end
+verbosity = i_params.verbosity;
 nImg = numel(i_imgs);
 
 if mod(i_params.LOFilterWH(1), 1) ~= 0
@@ -445,7 +512,10 @@ if ~isfield(textonFeats, 'Texton')
 end
 
 %% obtain integral images
-
+if verbosity >= 1
+    sTic = tic;
+    fprintf('* obtain integral images...');
+end
 % feat = cell(nImg, 1);
 % feats = struct('feat', []);
 % feats(nImg) = feats;
@@ -460,7 +530,9 @@ if ~isfield(feats, 'TextonIntImg')
         feats(iInd).TextonIntImg = textIntImg;
     end
 end
-
+if verbosity >= 1
+    fprintf('done (%s sec.)\n', num2str(toc(sTic)));
+end
 %% return
 % if ~cellFlag
 %     feat = cell2mat(feat);

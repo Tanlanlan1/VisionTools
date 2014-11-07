@@ -12,7 +12,7 @@ end
 annotate = true;
 saveAnnotation = true;
 verbosity = 1;
-nPerClsSample = 1000;
+nPerClsSample = 500;
 resizeRatio = 1;
 scales = 0.5:0.25:2;
 
@@ -119,20 +119,18 @@ if annotate
         labels(iInd).cls(:, :, nCls) = ~sum(labels(iInd).cls(:, :, 1:nCls-1), 3);    
     end
     labels = reshape(labels, size(imgs_train));
-    
-    
-%     imgs = struct('img', {img1, img2});
-%     labels = struct('cls', {zeros(size(img1, 1), size(img1, 2), nCls), []}, 'depth', []);
-%     for rInd=1:size(rects, 1)
-%         rect = rects(rInd, :);
-%         mask = poly2mask(...
-%             [rect(1) rect(1) rect(1)+rect(3)-1 rect(1)+rect(3)-1], ...
-%             [rect(2) rect(2)+rect(4)-1 rect(2)+rect(4)-1 rect(2)], ...
-%             size(img1, 1), size(img1, 2));
-%         labels(1).cls(:, :, rInd) = mask;
-%     end
-%     labels(1).cls(:, :, nCls) = ~sum(labels(1).cls(:, :, 1:nCls-1), 3);    
-    
+    % set mdlRects
+    mdlRects = struct('iInd', struct('poly', []));
+    for oInd=1:size(rects, 1) 
+        curRect = rects(oInd, :);
+        for iInd=1:numel(imgs_train)
+            xy = [[curRect(1) curRect(1) curRect(1)+curRect(3)-1 curRect(1)+curRect(3)-1];
+                [curRect(2) curRect(2)+curRect(4)-1 curRect(2)+curRect(4)-1 curRect(2)]];
+            K = convhull(xy(1, :), xy(2, :));
+            curPoly = xy(:, K); %same for all images
+            mdlRects(oInd).iInd(iInd).poly = curPoly;
+        end
+    end
 else
     % load db
     DBSt = load('DB/nyu_depth_v2_sample.mat');
@@ -159,13 +157,13 @@ SemSegParams = struct(...
     'feat', TBParams, ...
     'nPerClsSample', nPerClsSample, ...
     'classifier', JBParams, ...
-    'mdlRects', rects,...
+    'mdlRects', mdlRects,...
     'scales', scales, ...
     'supPix', 1, ...
     'verbosity', 1);
 
 %% learn
-[mdls, params_learn] = LearnSemSeg(imgs_train, labels, SemSegParams); %%FIXME: learning in scale space
+[mdls, params_learn] = LearnSemSeg(imgs_train, labels, SemSegParams);
 
 %% predict
 assert(any(SemSegParams.scales == 1));
@@ -173,7 +171,6 @@ assert(any(SemSegParams.scales == 1));
 
 %% show
 showPred( pred, params_pred, imgs_train, labels, imgs_test );
-% showPred( pred, params_pred, imgs_train(1).img, labels(1), imgs_test([imgs_test(:).pivot]).img );
 
-%%
+%% end
 fprintf('* Total time: %s\n', num2str(toc(totTic)));

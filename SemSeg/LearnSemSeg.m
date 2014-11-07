@@ -36,6 +36,7 @@ function [ o_mdl, o_params, o_feats ] = LearnSemSeg( i_imgs, i_labels, i_params 
 %% init
 assert(size(i_labels(1).cls, 1) == size(i_imgs(1).img, 1));
 assert(size(i_labels(1).cls, 2) == size(i_imgs(1).img, 2));
+assert(numel(i_imgs) == numel(i_labels));
 assert(isfield(i_imgs, 'img'));
 
 thisFilePath = fileparts(mfilename('fullpath'));
@@ -51,26 +52,45 @@ end
 if ~isfield(i_params, 'verbosity')
     i_params.verbosity = 0;
 end
+i_params.classifier.nCls = size(i_labels(1).cls, 3);
 i_params.classifier.nPerClsSample = i_params.nPerClsSample;
 tbParams = i_params.feat;
 
+%% sample images for efficient computation
+[i_imgs, i_labels] = sampleImages( i_imgs, i_labels);
+
 %% extract features
+% extract Texture
+[feat_texture, tbParams] = GetDenseFeature(i_imgs, {'Texture_LM'}, tbParams);
+% % sample images for extracting Texton
+% [imgs_Texton] = sampleImgForTexton(feat_texture, i_labels);
 % extract Texton
-[feats_texton, tbParams] = GetDenseFeature(i_imgs, {'Texton'}, tbParams); %%FIXME: sampling points are different with JointBoost
+[~, tbParams] = GetDenseFeature(feat_texture, {'TextonInit'}, tbParams); %%FIXME: Texton sampling points are different with JointBoost
+% extract Texton features
+[feats_texton, tbParams] = GetDenseFeature(feat_texture, {'Texton'}, tbParams);
 % init TextonBoost
-[~, tbParams] = GetDenseFeature([], {'TextonBoostInit'}, tbParams); %%FIXME: sampling points are different with JointBoost
+[~, tbParams] = GetDenseFeature([], {'TextonBoostInit'}, tbParams); 
 % extract TextonBoost: require pre-extracted Texton and part initialization
-feats_textInt = arrayfun(@(x) GetDenseFeature(x, {'TextonBoostInt'}, tbParams), feats_texton);
+% feats_textInt = arrayfun(@(x) GetDenseFeature(x, {'TextonBoostInt'}, tbParams), feats_texton);
+feats_textInt = GetDenseFeature(feats_texton, {'TextonBoostInt'}, tbParams);
+
+% %% extract features
+% % extract Texture
+% [feat_texture, tbParams] = GetDenseFeature(i_imgs, {'Texture_LM'}, tbParams);
+% % sample images for extracting Texton
+% [imgs_Texton] = sampleImgForTexton(feat_texture, i_labels);
+% % extract Texton
+% [~, tbParams] = GetDenseFeature(imgs_Texton, {'TextonInit'}, tbParams); %%FIXME: Texton sampling points are different with JointBoost
+% % extract Texton features
+% [feats_texton, tbParams] = GetDenseFeature(feat_texture, {'Texton'}, tbParams);
+% % init TextonBoost
+% [~, tbParams] = GetDenseFeature([], {'TextonBoostInit'}, tbParams); 
+% % extract TextonBoost: require pre-extracted Texton and part initialization
+% % feats_textInt = arrayfun(@(x) GetDenseFeature(x, {'TextonBoostInt'}, tbParams), feats_texton);
+% feats_textInt = GetDenseFeature(feats_texton, {'TextonBoostInt'}, tbParams);
 
 %% sampling data
 [ixy, label] = sampleData(i_params, i_labels);
-% ixy = cell(1, nImgs);
-% label = cell(nImgs, 1);
-% for iInd=1:nImgs
-%     [ixy{iInd}, label{iInd}] = sampleData(i_params, iInd, i_labels(iInd));
-% end
-% ixy = cell2mat(ixy);
-% label = cell2mat(label);
 
 %% learn a classifier (JointBoost)
 % set input parameters
@@ -95,8 +115,41 @@ o_mdl = mdls;
 o_params = i_params;
 o_params.feat = tbParams;
 o_params.classifier = JBParams;
-o_feats = feats_textInt;
+o_feats = []; %%FIXME: remove later
 end
+
+function [o_imgs] = sampleImgForTexton(i_imgs, i_labels)
+nImgs = numel(i_imgs);
+nCls = size(i_labels(1).cls, 3);
+% init
+o_imgs = i_imgs(1); 
+% find image ind with valid label
+ind = 1;
+for iInd=1:nImgs
+    if any(any(sum(i_labels(iInd).cls(:, :, 1:nCls-1), 3)))
+        o_imgs(ind) = i_imgs(iInd);
+        ind = ind + 1;
+    end
+end
+end
+
+function [o_imgs, o_labels] = sampleImages(i_imgs, i_labels)
+nImgs = numel(i_imgs);
+nCls = size(i_labels(1).cls, 3);
+% init
+o_imgs = i_imgs(1); 
+o_labels = i_labels(1);
+% find image ind with valid label
+ind = 1;
+for iInd=1:nImgs
+    if any(any(sum(i_labels(iInd).cls(:, :, 1:nCls-1), 3)))
+        o_imgs(ind) = i_imgs(iInd);
+        o_labels(ind) = i_labels(iInd);
+        ind = ind + 1;
+    end
+end
+end
+
 
 function [o_ixys, o_labels] = sampleData(i_params, i_label)
 
@@ -141,6 +194,11 @@ if i_params.classifier.binary == 1 % select bg for each classes
         ixys_i_bg = cell(1, nCls);
         labels_i_bg = cell(nCls, 1);
         for cInd=1:nCls % NOT include bg=0
+            % check there are positive labels
+            if ~any(any(i_label(iInd).cls(:, :, cInd)))
+                continue;
+            end
+            % find bg pixels
             [rows, cols] = find(~i_label(iInd).cls(:, :, cInd));
             if isempty(rows)
                 continue;

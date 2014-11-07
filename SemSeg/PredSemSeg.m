@@ -64,7 +64,11 @@ end
 
 %% extract features 
 tbParams = i_params.feat; % should not be changed
-feats = arrayfun(@(x) GetDenseFeature(x, {'TextonBoostInt'}, i_params.feat), i_imgs);
+% extract Texture
+[feat_texture, tbParams] = GetDenseFeature(i_imgs, {'Texture_LM'}, tbParams);
+% extract integral images
+% feats = arrayfun(@(x) GetDenseFeature(x, {'TextonBoostInt'}, i_params.feat), feat_texture);
+feats = GetDenseFeature(feat_texture, {'TextonBoostInt'}, i_params.feat);
 
 %% construct data structure
 [ixy, supLabelSts] = sampleData(i_params, i_imgs);
@@ -96,7 +100,7 @@ iInd = 1;
 refImgInd = find([i_imgs(iInd, :).pivot]);
 refScale = i_imgs(refImgInd).scale;
 imgWH_s1 = [size(i_imgs(iInd, refImgInd).img, 2); size(i_imgs(iInd, refImgInd).img, 1)];
-pred = predLabel(i_params, imgWH_s1, refScale, dist_resh);
+pred = predLabel(i_params, feats, imgWH_s1, refScale, dist_resh);
 
 %% return
 o_params = struct('feat', tbParams, 'classifier', JBParams);
@@ -138,7 +142,7 @@ ixy = cell2mat(ixy);
 supLabelSts = cell2mat(supLabelSts);
 end
 
-function [o_resp] = predLabel(i_params, i_pivotImgWH, i_pivotScale, i_dist_resh)
+function [o_resp] = predLabel(i_params, i_imgs, i_pivotImgWH, i_pivotScale, i_dist_resh)
 
 nmsOvRatio = 0.5;
 
@@ -163,6 +167,7 @@ for cfInd=1:nClf % for all classifiers
     for iInd1=1:nImg1
         for iInd2=1:nImg2
             dist_s = zeros(imgWH_s1(2), imgWH_s1(1), nScales, nCls);
+            iInd = sub2ind([nImg1, nImg2], iInd1, iInd2);
             for sInd=1:nScales
                 for cInd=1:nCls
                     % set dist_S
@@ -170,8 +175,14 @@ for cfInd=1:nClf % for all classifiers
 
                     % find bbs
                     if i_params.classifier.binary == 1 && cInd == 1
-                        curScale = i_params.scales(sInd);
-                        [curBBs_rect, curScore] = GetBBs(i_params.mdlRects(cfInd, 3:4), i_dist_resh(iInd1, iInd2, sInd).resp(:, :, cInd, cfInd));
+                        curScale = i_imgs(iInd1, iInd2, sInd).scale;
+%                         curScale = i_params.scales(sInd);
+                        curPoly = i_params.mdlRects(cfInd).iInd(iInd).poly;
+                        curMdlMask = poly2mask(curPoly(1, :), curPoly(2, :), round(max(curPoly(2, :))), round(max(curPoly(1, :))));
+                        curMdlMask(:, ~any(curMdlMask, 1)) = [];
+                        curMdlMask(~any(curMdlMask, 2), :) = [];
+                        [curBBs_rect, curScore] = GetBBs(curMdlMask, i_dist_resh(iInd1, iInd2, sInd).resp(:, :, cInd, cfInd));
+%                         [curBBs_rect, curScore] = GetBBs(i_params.mdlRects(cfInd, 3:4), i_dist_resh(iInd1, iInd2, sInd).resp(:, :, cInd, cfInd));
                         curBBs_rect = curBBs_rect/curScale*refScale;
                         bbs = [bbs; curBBs_rect(1) curBBs_rect(2) curBBs_rect(1)+curBBs_rect(3)-1 curBBs_rect(2)+curBBs_rect(4)-1 curScore];
                     end
@@ -215,8 +226,9 @@ o_resp = pred;
 end
 
 
-function [o_BBs_rect, o_score] = GetBBs(i_mdlWH, i_respMap)
+function [o_BBs_rect, o_score] = GetBBs(i_mdlMask, i_respMap)
 
+i_mdlWH = [size(i_mdlMask, 2); size(i_mdlMask, 1)];
 bbWH = round(i_mdlWH);
 respMap = i_respMap;
 % % show the response map
@@ -226,7 +238,8 @@ respMap = i_respMap;
 
 % find max
 respMap = padarray(respMap, max(0, [bbWH(2)-size(respMap, 1) bbWH(1)-size(respMap, 2)]), 0, 'pre'); 
-maxResp = conv2(respMap, ones(bbWH(2), bbWH(1))./(bbWH(2)*bbWH(1)), 'valid');
+mask_norm = i_mdlMask./sum(i_mdlMask(:));
+maxResp = conv2(respMap, mask_norm, 'valid');
 % % show the max response map
 % if verbosity>=2
 %     figure(56433); imagesc(maxResp); axis image;
@@ -243,4 +256,35 @@ o_BBs_rect = [xc yc bbWH(1) bbWH(2)];
 o_score = maxVal;
 
 end
+
+
+% 
+% function [o_BBs_rect, o_score] = GetBBs(i_mdlWH, i_respMap)
+% 
+% bbWH = round(i_mdlWH);
+% respMap = i_respMap;
+% % % show the response map
+% % if verbosity>=2
+% %     figure(43125); imagesc(respMap); axis image;
+% % end
+% 
+% % find max
+% respMap = padarray(respMap, max(0, [bbWH(2)-size(respMap, 1) bbWH(1)-size(respMap, 2)]), 0, 'pre'); 
+% maxResp = conv2(respMap, ones(bbWH(2), bbWH(1))./(bbWH(2)*bbWH(1)), 'valid');
+% % % show the max response map
+% % if verbosity>=2
+% %     figure(56433); imagesc(maxResp); axis image;
+% % end
+% 
+% % return bb  %%FIXME: return only one bb
+% [C, y_maxs] = max(maxResp, [], 1);
+% [maxVal, xc] = max(C, [], 2);
+% yc = y_maxs(xc);
+% 
+% assert(~isempty(xc));
+% % o_BBs_rect = [xc-round(bbWH(1)/2) yc-round(bbWH(2)/2) bbWH(1) bbWH(2)];
+% o_BBs_rect = [xc yc bbWH(1) bbWH(2)];
+% o_score = maxVal;
+% 
+% end
 
