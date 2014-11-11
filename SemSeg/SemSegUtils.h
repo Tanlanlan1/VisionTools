@@ -31,14 +31,16 @@ private:
     int nRows_;
     int nCols_;
     int nDeps_;
+    int nMore_;
 public:
     Mat(){
     }
-    Mat(T i_initVal, int i_nRows, int i_nCols, int i_nDeps=1){
+    Mat(T i_initVal, int i_nRows, int i_nCols, int i_nDeps=1, int i_nMore=1){
         nRows_ = i_nRows;
         nCols_ = i_nCols;
         nDeps_ = i_nDeps;
-        elems_.resize(nRows_*nCols_*nDeps_);
+        nMore_ = i_nMore;
+        elems_.resize(nRows_*nCols_*nDeps_*i_nMore);
         for(int i=0; i<elems_.size(); ++i)
             elems_[i] = i_initVal;
     }
@@ -46,8 +48,8 @@ public:
     T &GetRef(int i_ind){
         return elems_[i_ind];
     }
-    T &GetRef(int i_r, int i_c, int i_d=0){
-        return elems_[i_r + i_c*nRows_ + i_d*nRows_*nCols_];
+    T &GetRef(int i_r, int i_c, int i_d=0, int i_m=0){
+        return elems_[i_r + i_c*nRows_ + i_d*nRows_*nCols_ + i_m*nRows_*nCols_*nDeps_];
     }
     double Size(){
         return elems_.size();
@@ -60,12 +62,16 @@ public:
                 return nCols_;
             case 3:
                 return nDeps_;
+            case 4:
+                return nMore_;
         }
     }
-    void Resize(int i_nr, int i_nc, int i_nd=1){
+    void Resize(int i_nr, int i_nc, int i_nd=1, int i_nm=1){
         nRows_ = i_nr;
         nCols_ = i_nc;
-        elems_.resize(i_nr*i_nc*i_nd);
+        nDeps_ = i_nd;
+        nMore_ = i_nm;
+        elems_.resize(i_nr*i_nc*i_nd*i_nm);
     }
     
     T* Data(){
@@ -307,14 +313,23 @@ void ConvMXIntImgFeat2CIntImgFeat(const mxArray* i_intImgFeat, vector<struct Int
     }
 }
 
+
 struct ixys{
     vector<int> ixys_cls;
 };
+
+struct SuppixInfo{
+    Mat<int> label;
+    Mat<int> Lbl2ID;
+};
+        
 
 struct XMeta{
     vector<struct IntImgFeat> intImgFeat;
     struct TBParams TBParams;
     vector<struct ixys> ixys;
+    Mat<int> imgWHs;
+    vector<struct SuppixInfo> supLabelSt;
 };
 // struct XMeta{
 //     vector<struct IntImgFeat> intImgFeat;
@@ -348,17 +363,41 @@ void ConvMXMeta2CXMeta(const mxArray* i_x_meta, struct XMeta &o_x_meta){
     ConvMTBParams2CTBParams(mxGetField(i_x_meta, 0, "TBParams"), o_x_meta.TBParams);
     // ixy
     ConvMIXYS2CIXYS(mxGetField(i_x_meta, 0, "ixy"), o_x_meta.ixys);
-    
-//     // ixy
-//     mxArray* ixys = mxGetField(i_x_meta, 0, "ixy");
-//     const mwSize nDims = mxGetNumberOfDimensions(ixys);
-//     const mwSize* dims = mxGetDimensions(ixys);
-//     mwSize numel = 1;
-//     for(int i=0; i<nDims; ++i)
-//         numel *= dims[i];
-//     o_x_meta.ixys.resize(numel);
-//     int *mxData = (int*) mxGetData(ixys);
-//     memcpy(o_x_meta.ixys.data(), mxData, numel*sizeof(int));
+    // imgWHs
+    mxArray *imgWHs = mxGetField(i_x_meta, 0, "imgWHs");
+    int nRows = mxGetM(imgWHs);
+    int nCols = mxGetN(imgWHs);
+    if(nRows>0 && nCols>0){
+        int* imgWHsData = (int*)mxGetData(imgWHs);
+        o_x_meta.imgWHs.Resize(nRows, nCols);
+        memcpy(o_x_meta.imgWHs.Data(), imgWHsData, nRows*nCols*sizeof(int));   
+    }
+    // supLabelSt
+    mxArray *supLabelSt = mxGetField(i_x_meta, 0, "supLabelSt");
+    nRows = mxGetM(supLabelSt);
+    nCols = mxGetN(supLabelSt);
+    if(nRows>0 && nCols>0){
+        assert(nRows == 1 || nCols == 1);
+        int nCls = nRows*nCols;
+        o_x_meta.supLabelSt.resize(nCls);
+        for(int cInd=0; cInd<nCls; ++cInd){
+            //label
+            mxArray *maLabel = mxGetField(supLabelSt, cInd, "label");
+            nRows = mxGetM(maLabel);
+            nCols = mxGetN(maLabel);
+            o_x_meta.supLabelSt[cInd].label.Resize(nRows, nCols);
+            int *maLabelData = (int*)mxGetData(maLabel);
+            memcpy(o_x_meta.supLabelSt[cInd].label.Data(), maLabelData, nRows*nCols*sizeof(int));   
+                    
+            //Lbl2ID
+            mxArray *maLbl2ID = mxGetField(supLabelSt, cInd, "Lbl2ID");
+            nRows = mxGetM(maLbl2ID);
+            nCols = mxGetN(maLbl2ID);
+            o_x_meta.supLabelSt[cInd].Lbl2ID.Resize(nRows, nCols);
+            int *maLbl2IDData = (int*)mxGetData(maLbl2ID);
+            memcpy(o_x_meta.supLabelSt[cInd].Lbl2ID.Data(), maLbl2IDData, nRows*nCols*sizeof(int));   
+        }
+    }
 }
 
 void SetMdlField(mxArray* o_mdl, double a, double b, int f, double theta, vector<double> &kc, vector<int> &S){

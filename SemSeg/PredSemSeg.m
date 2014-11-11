@@ -72,7 +72,7 @@ feats = GetDenseFeature(feat_texture, {'TextonBoostInt'}, i_params.feat);
 
 %% construct data structure
 [ixy, supLabelSts] = sampleData(i_params, i_imgs);
-x_meta = struct('ixy', struct('ixys_cls', ixy), 'intImgFeat', feats, 'TBParams', tbParams);
+x_meta = struct('ixy', struct('ixys_cls', ixy), 'intImgFeat', feats, 'TBParams', tbParams, 'imgWHs', imgWHs, 'supLabelSt', supLabelSts);
 
 %% predict
 JBParams = i_params.classifier;
@@ -80,21 +80,22 @@ JBParams.nData = size(ixy, 2);
 if JBParams.verbosity >= 1
     fprintf('* Predict %d data\n', JBParams.nData);
 end
-[x_meta_mex, ~, JBParams_mex] = convParamsType(x_meta, [], JBParams);
+[x_meta_mex, ~, JBParams_mex, ] = convParamsType(x_meta, [], JBParams);
 mexTID = tic;
-dist = PredSemSeg_mex(x_meta_mex, i_mdls, JBParams_mex);
+dist_resh = PredSemSeg_mex(x_meta_mex, i_mdls, JBParams_mex);
 if JBParams.verbosity >= 1
-    fprintf('* Running time PredSemSeg_mex: %s sec.\n', num2str(toc(mexTID)));
+    fprintf('* PredSemSeg_mex running time: %s sec.\n', num2str(toc(mexTID)));
 end
 
-%% reshape responses
-mexTID = tic;
-dist_resh = reshapePredResponse_mex(nImgs, ixy, imgWHs, dist, supLabelSts);
-if JBParams.verbosity >= 1
-    fprintf('* Running time reshapePredResponse_mex: %s sec.\n', num2str(toc(mexTID)));
-end
+% %% reshape responses
+% mexTID = tic;
+% dist_resh = reshapePredResponse_mex(nImgs, ixy, imgWHs, dist, supLabelSts);
+% if JBParams.verbosity >= 1
+%     fprintf('* reshapePredResponse_mex running time: %s sec.\n', num2str(toc(mexTID)));
+% end
 
 %% prediction results
+mexTID = tic;
 imgs = i_imgs;
 dist_resh = reshape(dist_resh, size(imgs));
 refImgInd = find([imgs(1, 1, :).pivot]);
@@ -107,7 +108,9 @@ end
 refScale = imgs(refImgInd).scale;
 imgWH_s1 = [size(imgs(1, 1, refImgInd).img, 2); size(imgs(1, 1, refImgInd).img, 1)];
 pred = predLabel(i_params, feats, imgWH_s1, refScale, dist_resh);
-
+if JBParams.verbosity >= 1
+    fprintf('* predLabel running time: %s sec.\n', num2str(toc(mexTID)));
+end
 %% return
 o_params = struct('feat', tbParams, 'classifier', JBParams);
 o_feats = reshape(feats, size(i_imgs));
@@ -124,7 +127,7 @@ nImgs = numel(i_imgs);
 ixy = cell(1, nImgs);
 supLabelSts = cell(nImgs, 1); 
 %% sample
-for iInd=1:nImgs
+parfor iInd=1:nImgs
     if i_params.supPix == 1
         % sparse sampling by using superpixel
         if isfield(i_imgs(iInd), 'Superpixel')
@@ -167,7 +170,6 @@ pred = struct(...
     'bbs', []);
 
 for cfInd=1:nClf % for all classifiers
-
     dist_max_s = zeros(imgWH_s1(2), imgWH_s1(1), nCls);
     bbs = [];
     for iInd1=1:nImg1
