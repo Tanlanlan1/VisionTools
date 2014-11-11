@@ -14,6 +14,12 @@ nCls = params.classifier.nCls - 1; % rm bg
 % cls_ori = zeros(size(sampleMask));
 % cls_ori(sampleMask) = cls;
 pivotScaleInd = [teImgs(:).pivot];
+if ~any(pivotScaleInd)
+    assert(numel(teImgs) == 1)
+    teImgs(1).img = imresize(teImgs(1).img, 1/teImgs(1).scale);
+    teImgs(1).scale = 1;
+    pivotScaleInd = 1;
+end
 
 o_hFig = [];
 hFig = 3000;

@@ -95,11 +95,17 @@ if JBParams.verbosity >= 1
 end
 
 %% prediction results
-dist_resh = reshape(dist_resh, size(i_imgs));
-iInd = 1;
-refImgInd = find([i_imgs(iInd, :).pivot]);
-refScale = i_imgs(refImgInd).scale;
-imgWH_s1 = [size(i_imgs(iInd, refImgInd).img, 2); size(i_imgs(iInd, refImgInd).img, 1)];
+imgs = i_imgs;
+dist_resh = reshape(dist_resh, size(imgs));
+refImgInd = find([imgs(1, 1, :).pivot]);
+if isempty(refImgInd)
+    assert(numel(imgs) == 1);
+    imgs(2).img = imresize(imgs(1).img, 1/imgs(1).scale);
+    imgs(2).scale = 1;
+    refImgInd = 2;
+end
+refScale = imgs(refImgInd).scale;
+imgWH_s1 = [size(imgs(1, 1, refImgInd).img, 2); size(imgs(1, 1, refImgInd).img, 1)];
 pred = predLabel(i_params, feats, imgWH_s1, refScale, dist_resh);
 
 %% return
@@ -174,7 +180,7 @@ for cfInd=1:nClf % for all classifiers
                     dist_s(:, :, sInd, cInd) = imresize(i_dist_resh(iInd1, iInd2, sInd).resp(:, :, cInd, cfInd), [size(dist_s, 1), size(dist_s, 2)]);
 
                     % find bbs
-                    if i_params.classifier.binary == 1 && cInd == 1
+                    if i_params.classifier.binary == 1 && cInd == 1 && ~isempty(i_params.mdlRects)
                         curScale = i_imgs(iInd1, iInd2, sInd).scale;
 %                         curScale = i_params.scales(sInd);
                         curPoly = i_params.mdlRects(cfInd).iInd(iInd).poly;
