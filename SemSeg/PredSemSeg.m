@@ -100,12 +100,25 @@ imgs = i_imgs;
 dist_resh = reshape(dist_resh, size(imgs));
 refImgInd = find([imgs(1, 1, :).pivot]);
 if isempty(refImgInd)
-    assert(numel(imgs) == 1);
-    imgs(2).img = imresize(imgs(1).img, 1/imgs(1).scale);
-    imgs(2).scale = 1;
+    assert(size(imgs, 3) == 1);
+    
+    for iInd1=1:size(imgs, 1)
+        for iInd2=1:size(imgs, 2)
+            newImg = imgs(iInd1, iInd2, 1);
+            newImg.img = imresize(imgs(iInd1, iInd2, 1).img, 1/imgs(iInd1, iInd2, 1).scale);
+            newImg.scale = 1;
+            imgs(iInd1, iInd2, 2) = newImg;
+        end
+    end
+%     newImg = imgs;
+%     newImg.img = imresize(imgs(1).img, 1/imgs(1).scale);
+%     newImg.scale = 1;
+%     imgs = cat(3, imgs, newImg);
+% %     imgs(2).img = imresize(imgs(1).img, 1/imgs(1).scale);
+% %     imgs(2).scale = 1;
     refImgInd = 2;
 end
-refScale = imgs(refImgInd).scale;
+refScale = imgs(1, 1, refImgInd).scale;
 imgWH_s1 = [size(imgs(1, 1, refImgInd).img, 2); size(imgs(1, 1, refImgInd).img, 1)];
 pred = predLabel(i_params, feats, imgWH_s1, refScale, dist_resh);
 if JBParams.verbosity >= 1
@@ -198,34 +211,15 @@ for cfInd=1:nClf % for all classifiers
             end
     %         dist_max_s(:, :, :) = squeeze(mean(dist_s, 3)); 
             dist_max_s(:, :, :) = squeeze(max(dist_s, [], 3));
+            
+            %% save
+            % pixel: non-max suppression
+            pred(iInd1, iInd2, cfInd).dist = dist_max_s;
+            [~, pred(iInd1, iInd2, cfInd).cls] = max(dist_max_s, [], 3);
+            % bbs: non-max suppression
+            pred(iInd1, iInd2, cfInd).bbs = bbs(nms(bbs, nmsOvRatio), :);
         end
     end
-    
-    
-%     for iInd=1:size(i_imgs, 1)
-%         dist_s = zeros(imgWH_s1(2), imgWH_s1(1), size(i_imgs, 2), nCls);
-%         for sInd=1:size(i_imgs, 2)
-%             for cInd=1:nCls
-%                 % set dist_S
-%                 dist_s(:, :, sInd, cInd) = imresize(i_dist_resh(iInd, sInd).resp(:, :, cInd, cfInd), [size(dist_s, 1), size(dist_s, 2)]);
-% 
-%                 % find bbs
-%                 if i_params.classifier.binary == 1 && cInd == 1
-%                     curScale = i_params.scales(sInd);
-%                     [curBBs_rect, curScore] = GetBBs(i_params.mdlRects(cfInd, 3:4), i_dist_resh(iInd, sInd).resp(:, :, cInd, cfInd)); %%FIXME: return only one bb
-%                     curBBs_rect = curBBs_rect/curScale*refScale;
-%                     bbs = [bbs; curBBs_rect(1) curBBs_rect(2) curBBs_rect(1)+curBBs_rect(3)-1 curBBs_rect(2)+curBBs_rect(4)-1 curScore];
-%                 end
-%             end
-%         end
-% %         dist_max_s(:, :, :) = squeeze(mean(dist_s, 3)); 
-%         dist_max_s(:, :, :) = squeeze(max(dist_s, [], 3));
-%     end
-    % pixel: non-max suppression
-    pred(cfInd).dist = dist_max_s;
-    [~, pred(cfInd).cls] = max(dist_max_s, [], 3);
-    % bbs: non-max suppression
-    pred(cfInd).bbs = bbs(nms(bbs, nmsOvRatio), :);
 end
 
 %% return 
@@ -246,8 +240,8 @@ respMap = i_respMap;
 
 % find max
 respMap = padarray(respMap, max(0, [bbWH(2)-size(respMap, 1) bbWH(1)-size(respMap, 2)]), 0, 'pre'); 
-mask_norm = i_mdlMask./sum(i_mdlMask(:));
-maxResp = conv2(respMap, mask_norm, 'valid');
+mask_norm = rot90(i_mdlMask./sum(i_mdlMask(:)), 2); %flip! %%FIXME: working???
+maxResp = conv2(respMap, mask_norm, 'valid'); 
 % % show the max response map
 % if verbosity>=2
 %     figure(56433); imagesc(maxResp); axis image;
