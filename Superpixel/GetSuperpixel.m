@@ -89,12 +89,15 @@ switch i_method
         
         %% add path
         thisFilePath = fileparts(mfilename('fullpath'));
-        vlfeatmexpath = [thisFilePath '/../vlfeat/toolbox/'];
+        vlfeatmexpath = [thisFilePath '/../vlfeat/toolbox/mex'];
         vlfeatmexapthall = genpath(vlfeatmexpath);
         addpath(vlfeatmexapthall);
         if ~strfind(getenv('LD_LIBRARY_PATH'), vlfeatmexapthall)
             setenv('LD_LIBRARY_PATH', [vlfeatmexapthall ':' getenv('LD_LIBRARY_PATH')]);
         end
+        vlfeatmexpath = [thisFilePath '/../vlfeat/toolbox/imop'];
+        vlfeatmexapthall = genpath(vlfeatmexpath);
+        addpath(vlfeatmexapthall);
         %% run
         imlab = vl_xyz2lab(vl_rgb2xyz(min(max(0, im2double(i_img)), 1)));
         o_label = vl_slic(single(imlab), i_params.regionSize, i_params.regularizer);
