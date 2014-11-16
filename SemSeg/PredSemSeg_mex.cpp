@@ -108,7 +108,7 @@ void ReshapeResp(struct XMeta &i_xMeta, Mat<double> &i_Hs, vector<struct resp> &
                 // get current response
                 vector<double> curResp;
                 for(int i=0; i<nData; ++i)
-                    if(i_xMeta.ixys[0].ixys_cls[0 + i*3] -1 == iInd) // zero-base
+                    if(i_xMeta.ixys[0][0 + i*3] -1 == iInd) // zero-base
                         curResp.push_back(i_Hs.GetRef(i, cInd, cfInd));
                 // reshape
                 if(supFlag){
@@ -196,6 +196,9 @@ mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     }
     
     // predict
+    sprintf(buf, "* Run main code");
+    cout << buf << endl; fflush(stdout);
+    
     Mat<double> Hs(0, nData, nCls, nClsf);
     PredJointBoost(Hs, xMeta, mdls_cpp, i_params);
     

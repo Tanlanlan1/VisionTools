@@ -5,9 +5,9 @@ addpath(genpath('../Superpixel')); %%FIXME
 addpath(genpath('../JointBoost')); %%FIXME
 addpath(genpath('../libMatlabHelper')); %%FIXME
 close all;
-if matlabpool('size') == 0
-    matlabpool open;
-end
+% if matlabpool('size') == 0
+%     matlabpool open;
+% end
 
 annotate = true;
 saveAnnotation = true;

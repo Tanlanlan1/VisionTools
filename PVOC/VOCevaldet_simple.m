@@ -14,27 +14,27 @@ for dbInd=1:numel(pasDB_det)
     
     % handle gt
     rec_gt = pasDB_gt(dbInd);
-    
     gt = [];
-    clsinds = strcmp(cls, {rec_gt.objects(:).class});
+    clsinds = find(strcmp(cls, {rec_gt.objects(:).class}));
     gt.BB = cat(1, rec_gt.objects(clsinds).bbox)';
     gt.diff = [rec_gt.objects(clsinds).difficult];
     gt.det = false(length(clsinds),1);
     npos = npos+sum(~gt.diff);
-    
+
     gts = [gts; gt];
     
     % handle det
     rec_det = pasDB_det(dbInd);
-    
-    clsinds = strcmp(cls, {rec_det.objects(:).class});
-    BB = cat(1, rec_det.objects(clsinds).bbox)';
-    score = cat(1, rec_det.objects(clsinds).score)';
-    BBs = [BBs BB];
-    scores = [scores score];
-    
-    % remember indice
-    dbObjInd = [dbObjInd [ones(1, numel(clsinds))*dbInd; find(clsinds)]];
+    if ~isempty(rec_det.objects) %%FIXME: correct?
+        clsinds = find(strcmp(cls, {rec_det.objects(:).class}));
+        BB = cat(1, rec_det.objects(clsinds).bbox)';
+        score = cat(1, rec_det.objects(clsinds).score)';
+        BBs = [BBs BB];
+        scores = [scores score];
+
+        % remember indice
+        dbObjInd = [dbObjInd [ones(1, numel(clsinds))*dbInd; find(clsinds)]];
+    end
 end
 
 

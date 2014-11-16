@@ -601,11 +601,11 @@ feats = textonFeats;
 if ~isfield(feats, 'TextonIntImg')
 %     textonFeats_sq = arrayfun(@(x) struct('Texton', x.Texton), textonFeats);
 
-    for iInd=1:nImg
+    parfor iInd=1:nImg
         curFeat = textonFeats(iInd).Texton;
 %         curFeat = textonFeats_sq(iInd).Texton;
         textIntImg = zeros(size(curFeat(1).textonSpImg, 1)+1, size(curFeat(1).textonSpImg, 2)+1, nTexton, 'single');
-        parfor tInd=1:nTexton
+        for tInd=1:nTexton
 %             textIntImg(:, :, tInd) = integralImage(curFeat(:, :, tInd));
             textIntImg(:, :, tInd) = integralImage(full(curFeat(tInd).textonSpImg));
         end

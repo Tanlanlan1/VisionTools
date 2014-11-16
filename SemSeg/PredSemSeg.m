@@ -177,11 +177,13 @@ nScales = size(i_dist_resh, 3);
 nCls = size(i_dist_resh(1).resp, 3);
 nClf = size(i_dist_resh(1).resp, 4);
 
+% % rm other data for efficiently using parfor
+% i_imgs = arrayfun(@(x) struct('scale', x.scale), i_imgs);
+
 pred = struct(...
     'dist', zeros(imgWH_s1(2), imgWH_s1(1), nCls), ...
     'cls', zeros(imgWH_s1(2), imgWH_s1(1)), ...
     'bbs', []);
-
 for cfInd=1:nClf % for all classifiers
     dist_max_s = zeros(imgWH_s1(2), imgWH_s1(1), nCls);
     bbs = [];
@@ -241,7 +243,8 @@ respMap = i_respMap;
 % find max
 respMap = padarray(respMap, max(0, [bbWH(2)-size(respMap, 1) bbWH(1)-size(respMap, 2)]), 0, 'pre'); 
 mask_norm = rot90(i_mdlMask./sum(i_mdlMask(:)), 2); %flip! %%FIXME: working???
-maxResp = conv2(respMap, mask_norm, 'valid'); 
+% maxResp = conv2(respMap, mask_norm, 'valid'); 
+maxResp = myconv2(respMap, mask_norm, 'valid'); 
 % % show the max response map
 % if verbosity>=2
 %     figure(56433); imagesc(maxResp); axis image;

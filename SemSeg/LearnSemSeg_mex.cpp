@@ -226,7 +226,8 @@ void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray*
         
         // init XMeta, ys
         struct XMeta x_meta = i_x_meta; //FIXME: can be inefficient
-        vector<int> ys; //FIXME: can be inefficient
+//         vector<int> ys; //FIXME: can be inefficient
+        Mat<int> ys;
         if(fBinary==1){           
             // reconstruct XMeta
             x_meta.ixys[0] = x_meta.ixys[rInd]; //FIXME: can make bugs...
@@ -234,8 +235,9 @@ void LearnJointBoost(struct XMeta &i_x_meta, const mxArray* i_ys, const mxArray*
             mxArray *ys_rInd = mxGetField(i_ys, rInd, "labels_cls");
             int* ys_rInd_data = (int*)mxGetData(ys_rInd);
             size_t nElems = mxGetNumberOfElements(ys_rInd);
-            ys.resize(nElems);
-            memcpy(ys.data(), ys_rInd_data, nElems*sizeof(int));
+//             ys.resize(nElems);
+//             memcpy(ys.data(), ys_rInd_data, nElems*sizeof(int));
+            ys = Mat<int>(true, ys_rInd_data, nElems, 1);
             // update nData since it's vary depending on the class
             nData = nElems;
             

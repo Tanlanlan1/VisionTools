@@ -27,15 +27,21 @@ void GetRandPerm(int i_start, int i_end, vector<int>& o_list){
 template<class T>
 class Mat{ //FIXME: assume three dimensions
 private:
+    enum MTYPE {INTERNAL, EXTERNAL};
+private:
+    MTYPE mType_;
     vector<T> elems_;
+    T* elems_ext_; //FIXME: should be const...
     int nRows_;
     int nCols_;
     int nDeps_;
     int nMore_;
 public:
     Mat(){
+        mType_ = INTERNAL;
     }
     Mat(T i_initVal, int i_nRows, int i_nCols, int i_nDeps=1, int i_nMore=1){
+        mType_ = INTERNAL;
         nRows_ = i_nRows;
         nCols_ = i_nCols;
         nDeps_ = i_nDeps;
@@ -44,15 +50,42 @@ public:
         for(int i=0; i<elems_.size(); ++i)
             elems_[i] = i_initVal;
     }
+    Mat(bool i_ext, T *i_buf, int i_nRows, int i_nCols, int i_nDeps=1, int i_nMore=1){
+        mType_ = EXTERNAL;
+        elems_ext_ = i_buf;
+        nRows_ = i_nRows;
+        nCols_ = i_nCols;
+        nDeps_ = i_nDeps;
+        nMore_ = i_nMore;
+    }
+    
 public:
-    T &GetRef(int i_ind){
-        return elems_[i_ind];
+//     T &GetRef(int i_ind){
+//         switch(mType_){
+//             case INTERNAL:
+//                 return elems_[i_ind];
+//             case EXTERNAL:
+//                 return elems_ext_[i_ind];
+//         }
+//     }
+    
+    
+    T &GetRef(int i_r, int i_c=0, int i_d=0, int i_m=0){
+        T* tmp;
+        switch(mType_){
+            case INTERNAL:
+                return elems_[i_r + i_c*nRows_ + i_d*nRows_*nCols_ + i_m*nRows_*nCols_*nDeps_];
+            case EXTERNAL:
+                return elems_ext_[i_r + i_c*nRows_ + i_d*nRows_*nCols_ + i_m*nRows_*nCols_*nDeps_];
+        }
     }
-    T &GetRef(int i_r, int i_c, int i_d=0, int i_m=0){
-        return elems_[i_r + i_c*nRows_ + i_d*nRows_*nCols_ + i_m*nRows_*nCols_*nDeps_];
+    T &operator[](int i_ind){
+        return GetRef(i_ind);
     }
+    
+    
     double Size(){
-        return elems_.size();
+        return nRows_*nCols_*nDeps_*nMore_;
     }
     double Size(int i_ind){
         switch(i_ind){
@@ -67,6 +100,9 @@ public:
         }
     }
     void Resize(int i_nr, int i_nc, int i_nd=1, int i_nm=1){
+        if(mType_ == EXTERNAL)
+            return;
+        
         nRows_ = i_nr;
         nCols_ = i_nc;
         nDeps_ = i_nd;
@@ -75,7 +111,12 @@ public:
     }
     
     T* Data(){
-        return elems_.data();
+        switch(mType_){
+            case INTERNAL:
+                return elems_.data();
+            case EXTERNAL:
+                return elems_ext_;
+        }
     }
     
 };
@@ -171,27 +212,27 @@ mxArray* InitMdl(int i_n, int i_nClsf, double i_nCls){
 }
 
 
-void ConvMat2MMat(Mat<double>& i_mat, const mxArray* o_mat){
-    const mwSize *pDims = mxGetDimensions(o_mat);
-    mwSize nDim = mxGetNumberOfDimensions(o_mat);
-    assert(nDim == 3 || nDim == 2);
-    size_t nRows = pDims[0];
-    size_t nCols = pDims[1];
-    size_t nDeps;
-    if(nDim == 2)
-        nDeps = 1;
-    else
-        nDeps = pDims[2];
-        
-    double* mxData = (double*)mxGetData(o_mat);
-    memcpy(mxData, i_mat.Data(), nRows*nCols*nDeps*sizeof(double));
-    
-    
-//     for(int rInd=0; rInd<nRows; ++rInd)
-//         for(int cInd=0; cInd<nCols; ++cInd)
-//             for(int dInd=0; dInd<nDeps; ++dInd)
-//                 (*GetDblPnt(o_mat, rInd, cInd, dInd)) = i_mat.GetRef(rInd, cInd, dInd);
-}
+// void ConvMat2MMat(Mat<double>& i_mat, const mxArray* o_mat){
+//     const mwSize *pDims = mxGetDimensions(o_mat);
+//     mwSize nDim = mxGetNumberOfDimensions(o_mat);
+//     assert(nDim == 3 || nDim == 2);
+//     size_t nRows = pDims[0];
+//     size_t nCols = pDims[1];
+//     size_t nDeps;
+//     if(nDim == 2)
+//         nDeps = 1;
+//     else
+//         nDeps = pDims[2];
+//         
+//     double* mxData = (double*)mxGetData(o_mat);
+//     memcpy(mxData, i_mat.Data(), nRows*nCols*nDeps*sizeof(double));
+//     
+//     
+// //     for(int rInd=0; rInd<nRows; ++rInd)
+// //         for(int cInd=0; cInd<nCols; ++cInd)
+// //             for(int dInd=0; dInd<nDeps; ++dInd)
+// //                 (*GetDblPnt(o_mat, rInd, cInd, dInd)) = i_mat.GetRef(rInd, cInd, dInd);
+// }
 
 void ConvMMdl2CMdl(const mxArray* i_mdls, Mat<JBMdl> &o_mdls){
     const mwSize *dims = mxGetDimensions(i_mdls);
@@ -285,38 +326,40 @@ void ConvMTBParams2CTBParams(const mxArray* i_TBParams, struct TBParams &o_TBPar
     }
 }
 
-struct IntImgFeat{
-    vector<double> feat;
-    int nRows;
-    int nCols;
-    int nDeps;
-};
+// struct IntImgFeat{
+//     vector<double> feat;
+//     int nRows;
+//     int nCols;
+//     int nDeps;
+// };
 
-void ConvMXIntImgFeat2CIntImgFeat(const mxArray* i_intImgFeat, vector<struct IntImgFeat> &o_intImgFeat){
+void ConvMXIntImgFeat2CIntImgFeat(const mxArray* i_intImgFeat, vector< Mat<double> > &o_intImgFeat){
     int nImgs = mxGetNumberOfElements(i_intImgFeat);
     for(int iInd=0; iInd<nImgs; ++iInd){
-        struct IntImgFeat intImgFeat;
+//         struct IntImgFeat intImgFeat;
         mxArray *curIntImg = mxGetField(i_intImgFeat, iInd, "TextonIntImg");
         const mwSize *dims = mxGetDimensions(curIntImg);
         int nRows = dims[0];
         int nCols = dims[1];
         int nDeps = dims[2];
-        intImgFeat.feat.resize(nRows*nCols*nDeps);
+//         intImgFeat.feat.resize(nRows*nCols*nDeps);
         // copy
         double *mxData = (double*)mxGetData(curIntImg);
-        memcpy(intImgFeat.feat.data(), mxData, nRows*nCols*nDeps*sizeof(double));
-        intImgFeat.nRows = nRows;
-        intImgFeat.nCols = nCols;
-        intImgFeat.nDeps = nDeps;
+        Mat<double> intImgFeat(true, mxData, nRows, nCols, nDeps);
+//         double *mxData = (double*)mxGetData(curIntImg);
+//         memcpy(intImgFeat.feat.data(), mxData, nRows*nCols*nDeps*sizeof(double));
+//         intImgFeat.nRows = nRows;
+//         intImgFeat.nCols = nCols;
+//         intImgFeat.nDeps = nDeps;
         // save
         o_intImgFeat.push_back(intImgFeat);
     }
 }
 
 
-struct ixys{
-    vector<int> ixys_cls;
-};
+// struct ixys{
+//     vector<int> ixys_cls;
+// };
 
 struct SuppixInfo{
     Mat<int> label;
@@ -325,32 +368,34 @@ struct SuppixInfo{
         
 
 struct XMeta{
-    vector<struct IntImgFeat> intImgFeat;
+//     vector<struct IntImgFeat> intImgFeat;
+    vector< Mat<double> > intImgFeat;
     struct TBParams TBParams;
-    vector<struct ixys> ixys;
+//     vector<struct ixys> ixys;
+    vector< Mat<int> > ixys;
     Mat<int> imgWHs;
     vector<struct SuppixInfo> supLabelSt;
 };
-// struct XMeta{
-//     vector<struct IntImgFeat> intImgFeat;
-//     struct TBParams TBParams;
-//     vector<int> ixys;
-// };
 
-void ConvMIXYS2CIXYS(const mxArray* i_ixys, vector<struct ixys> &o_ixys){
+void ConvMIXYS2CIXYS(const mxArray* i_ixys, vector< Mat<int> > &o_ixys){
     //init
     int nCls = mxGetNumberOfElements(i_ixys);
     o_ixys.resize(nCls);
     // set vals
     for(int cInd=0; cInd<nCls; ++cInd){
+//         mxArray* ixys_cls_mx = mxGetField(i_ixys, cInd, "ixys_cls");
+//         struct ixys ixys_cur;
+//         int nElems = mxGetNumberOfElements(ixys_cls_mx);
+//         ixys_cur.ixys_cls.resize(nElems);
+//         int *mxData = (int*) mxGetData(ixys_cls_mx);
+//         memcpy(ixys_cur.ixys_cls.data(), mxData, nElems*sizeof(int));   
+//         // save
+//         o_ixys[cInd] = ixys_cur;
+        
         mxArray* ixys_cls_mx = mxGetField(i_ixys, cInd, "ixys_cls");
-        struct ixys ixys_cur;
-        int nElems = mxGetNumberOfElements(ixys_cls_mx);
-        ixys_cur.ixys_cls.resize(nElems);
         int *mxData = (int*) mxGetData(ixys_cls_mx);
-        memcpy(ixys_cur.ixys_cls.data(), mxData, nElems*sizeof(int));   
-        // save
-        o_ixys[cInd] = ixys_cur;
+        int nElems = mxGetNumberOfElements(ixys_cls_mx);
+        o_ixys[cInd] = Mat<int>(true, mxData, nElems, 1);
     }
 }
 
@@ -369,8 +414,9 @@ void ConvMXMeta2CXMeta(const mxArray* i_x_meta, struct XMeta &o_x_meta){
     int nCols = mxGetN(imgWHs);
     if(nRows>0 && nCols>0){
         int* imgWHsData = (int*)mxGetData(imgWHs);
-        o_x_meta.imgWHs.Resize(nRows, nCols);
-        memcpy(o_x_meta.imgWHs.Data(), imgWHsData, nRows*nCols*sizeof(int));   
+        o_x_meta.imgWHs = Mat<int>(true, imgWHsData, nRows, nCols);
+//         o_x_meta.imgWHs.Resize(nRows, nCols);
+//         memcpy(o_x_meta.imgWHs.Data(), imgWHsData, nRows*nCols*sizeof(int));   
     }
     // supLabelSt
     mxArray *supLabelSt = mxGetField(i_x_meta, 0, "supLabelSt");
@@ -383,19 +429,22 @@ void ConvMXMeta2CXMeta(const mxArray* i_x_meta, struct XMeta &o_x_meta){
         for(int cInd=0; cInd<nCls; ++cInd){
             //label
             mxArray *maLabel = mxGetField(supLabelSt, cInd, "label");
+            int *maLabelData = (int*)mxGetData(maLabel);
             nRows = mxGetM(maLabel);
             nCols = mxGetN(maLabel);
-            o_x_meta.supLabelSt[cInd].label.Resize(nRows, nCols);
-            int *maLabelData = (int*)mxGetData(maLabel);
-            memcpy(o_x_meta.supLabelSt[cInd].label.Data(), maLabelData, nRows*nCols*sizeof(int));   
-                    
+        
+//             o_x_meta.supLabelSt[cInd].label.Resize(nRows, nCols);
+//             memcpy(o_x_meta.supLabelSt[cInd].label.Data(), maLabelData, nRows*nCols*sizeof(int));   
+            o_x_meta.supLabelSt[cInd].label = Mat<int>(true, maLabelData, nRows, nCols);
             //Lbl2ID
             mxArray *maLbl2ID = mxGetField(supLabelSt, cInd, "Lbl2ID");
+            int *maLbl2IDData = (int*)mxGetData(maLbl2ID);
             nRows = mxGetM(maLbl2ID);
             nCols = mxGetN(maLbl2ID);
-            o_x_meta.supLabelSt[cInd].Lbl2ID.Resize(nRows, nCols);
-            int *maLbl2IDData = (int*)mxGetData(maLbl2ID);
-            memcpy(o_x_meta.supLabelSt[cInd].Lbl2ID.Data(), maLbl2IDData, nRows*nCols*sizeof(int));   
+            
+//             o_x_meta.supLabelSt[cInd].Lbl2ID.Resize(nRows, nCols);
+//             memcpy(o_x_meta.supLabelSt[cInd].Lbl2ID.Data(), maLbl2IDData, nRows*nCols*sizeof(int));   
+            o_x_meta.supLabelSt[cInd].Lbl2ID = Mat<int>(true, maLbl2IDData, nRows, nCols);
         }
     }
 }
@@ -601,15 +650,17 @@ double GetithTextonBoost(int dInd, int fInd, struct XMeta &i_x_meta){
     part[3] = i_x_meta.TBParams.parts[3 + 4*pInd] - 1; // zero-base
     
     int ixy[3];
-//     ixy[0] = i_x_meta.ixys[0 + 3*dInd] - 1; // zero-base
-//     ixy[1] = i_x_meta.ixys[1 + 3*dInd] - 1; // zero-base
-//     ixy[2] = i_x_meta.ixys[2 + 3*dInd] - 1; // zero-base
-    ixy[0] = i_x_meta.ixys[0].ixys_cls[0 + 3*dInd] - 1; // zero-base
-    ixy[1] = i_x_meta.ixys[0].ixys_cls[1 + 3*dInd] - 1; // zero-base
-    ixy[2] = i_x_meta.ixys[0].ixys_cls[2 + 3*dInd] - 1; // zero-base
+//     ixy[0] = i_x_meta.ixys[0].ixys_cls[0 + 3*dInd] - 1; // zero-base
+//     ixy[1] = i_x_meta.ixys[0].ixys_cls[1 + 3*dInd] - 1; // zero-base
+//     ixy[2] = i_x_meta.ixys[0].ixys_cls[2 + 3*dInd] - 1; // zero-base
+    ixy[0] = i_x_meta.ixys[0][0 + 3*dInd] - 1; // zero-base
+    ixy[1] = i_x_meta.ixys[0][1 + 3*dInd] - 1; // zero-base
+    ixy[2] = i_x_meta.ixys[0][2 + 3*dInd] - 1; // zero-base
     
-    int nIntImgRows = i_x_meta.intImgFeat[ixy[0]].nRows;
-    int nIntImgCols = i_x_meta.intImgFeat[ixy[0]].nCols;
+//     int nIntImgRows = i_x_meta.intImgFeat[ixy[0]].nRows;
+//     int nIntImgCols = i_x_meta.intImgFeat[ixy[0]].nCols;
+    int nIntImgRows = i_x_meta.intImgFeat[ixy[0]].Size(1);
+    int nIntImgCols = i_x_meta.intImgFeat[ixy[0]].Size(2);
     int imgWH[2];
     imgWH[0] = nIntImgCols-1;
     imgWH[1] = nIntImgRows-1;
@@ -635,10 +686,14 @@ double GetithTextonBoost(int dInd, int fInd, struct XMeta &i_x_meta){
     xy_part_br_trunk[1] = min(max(0, xy_part_br[1]), imgWH[1]-1); // zero-base
     
     // extract and return
-    double I1 = i_x_meta.intImgFeat[ixy[0]].feat[(xy_part_br_trunk[1]+1) + nIntImgRows*(xy_part_br_trunk[0]+1) + nIntImgRows*nIntImgCols*tInd];
-    double I2 = i_x_meta.intImgFeat[ixy[0]].feat[(xy_part_tl_trunk[1]) + nIntImgRows*(xy_part_br_trunk[0]+1) + nIntImgRows*nIntImgCols*tInd];
-    double I3 = i_x_meta.intImgFeat[ixy[0]].feat[(xy_part_br_trunk[1]+1) + nIntImgRows*(xy_part_tl_trunk[0]) + nIntImgRows*nIntImgCols*tInd];
-    double I4 = i_x_meta.intImgFeat[ixy[0]].feat[(xy_part_tl_trunk[1]) + nIntImgRows*(xy_part_tl_trunk[0]) + nIntImgRows*nIntImgCols*tInd];
+//     double I1 = i_x_meta.intImgFeat[ixy[0]].feat[(xy_part_br_trunk[1]+1) + nIntImgRows*(xy_part_br_trunk[0]+1) + nIntImgRows*nIntImgCols*tInd];
+//     double I2 = i_x_meta.intImgFeat[ixy[0]].feat[(xy_part_tl_trunk[1]) + nIntImgRows*(xy_part_br_trunk[0]+1) + nIntImgRows*nIntImgCols*tInd];
+//     double I3 = i_x_meta.intImgFeat[ixy[0]].feat[(xy_part_br_trunk[1]+1) + nIntImgRows*(xy_part_tl_trunk[0]) + nIntImgRows*nIntImgCols*tInd];
+//     double I4 = i_x_meta.intImgFeat[ixy[0]].feat[(xy_part_tl_trunk[1]) + nIntImgRows*(xy_part_tl_trunk[0]) + nIntImgRows*nIntImgCols*tInd];
+    double I1 = i_x_meta.intImgFeat[ixy[0]][(xy_part_br_trunk[1]+1) + nIntImgRows*(xy_part_br_trunk[0]+1) + nIntImgRows*nIntImgCols*tInd];
+    double I2 = i_x_meta.intImgFeat[ixy[0]][(xy_part_tl_trunk[1]) + nIntImgRows*(xy_part_br_trunk[0]+1) + nIntImgRows*nIntImgCols*tInd];
+    double I3 = i_x_meta.intImgFeat[ixy[0]][(xy_part_br_trunk[1]+1) + nIntImgRows*(xy_part_tl_trunk[0]) + nIntImgRows*nIntImgCols*tInd];
+    double I4 = i_x_meta.intImgFeat[ixy[0]][(xy_part_tl_trunk[1]) + nIntImgRows*(xy_part_tl_trunk[0]) + nIntImgRows*nIntImgCols*tInd];
     double Area = (xy_part_br[0] - xy_part_tl[0] + 1)*(xy_part_br[1] - xy_part_tl[1] + 1);
     return (I1-I2-I3+I4)/Area;
 }
