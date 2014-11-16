@@ -3,7 +3,7 @@ function [ C ] = myconv2( A, B, shape, maxWH )
 %   Detailed explanation goes here
 
 %% init
-if nargn == 3
+if nargin == 3
     maxWH = [640; 480];
 end
 %%FIXME: assume A is larger than B
