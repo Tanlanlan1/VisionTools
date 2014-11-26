@@ -140,7 +140,7 @@ nImgs = numel(i_imgs);
 ixy = cell(1, nImgs);
 supLabelSts = cell(nImgs, 1); 
 %% sample
-parfor iInd=1:nImgs
+for iInd=1:nImgs
     if i_params.supPix == 1
         % sparse sampling by using superpixel
         if isfield(i_imgs(iInd), 'Superpixel')

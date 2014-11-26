@@ -1,2 +1,2 @@
-props = GetObjectProposal(imread('000015.jpg'), struct('verbosity', 1));
+props = GetObjectProposal(imresize(imread('kidblock_7_367_d5.jpg'), 0.5), struct('verbosity', 1, 'WHMinRatioThres', 0.25,'convexityThres', 0.5, 'nmsOverlap', 0.5));
 % GetObjectProposal(imread('~/UPenn/Research/Data/classData/3/image_undist/image0000100.bmp'));

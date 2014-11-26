@@ -7,6 +7,7 @@
 %
 
 %% load an image
+% img = imresize(im2double(imread('classroom.jpeg')), 0.25);
 img = imresize(im2double(imread('classroom.jpeg')), 0.25);
 
 %% obtain superpixel using NCut

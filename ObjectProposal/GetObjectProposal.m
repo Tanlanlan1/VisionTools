@@ -68,7 +68,7 @@ if ~isfield(i_params, 'bounaryRatio')
     i_params.bounaryRatio = 0.1;
 end
 if ~isfield(i_params, 'WHMinRatioThres')
-    i_params.WHMinRatioThres = 0.1;
+    i_params.WHMinRatioThres = 0.25;
 end
 if ~isfield(i_params, 'convexityThres')
     i_params.convexityThres = 0.5;
@@ -95,6 +95,7 @@ simFunctionHandles = {@SSSimColourTextureSizeFillOrig, @SSSimTextureSizeFill, @S
 
 %% Perform Selective Search
 o_prop = cell(nImg, 1);
+% warning('no parfor!');
 parfor iInd=1:nImg
     im = im2double(i_imgs{iInd});
     minSize = i_params.k;
@@ -131,7 +132,8 @@ parfor iInd=1:nImg
             valid(bInd) = ...
                 all(i_params.minRatio*imgWH <= curWH) && all(i_params.maxRatio*imgWH >= curWH) && ... % size
                 min(curWH(1)/curWH(2), curWH(2)/curWH(1)) > i_params.WHMinRatioThres && ... % thinness
-                curBlob{bInd}.size/(curWH(1)*curWH(2)) > i_params.convexityThres; % convexity
+                curBlob{bInd}.size/sum(sum(bwconvhull(curBlob{bInd}.mask))) > i_params.convexityThres; % convexity
+%                 curBlob{bInd}.size/(curWH(1)*curWH(2)) > i_params.convexityThres; % convexity
         end
         hBlobs_pruned{hInd} = curBlob(valid);
         % show
@@ -139,8 +141,9 @@ parfor iInd=1:nImg
             ShowBlobs(hBlobs_pruned{hInd}, 5, 5, im);
         end
     end
-    blobs = hBlobs_pruned{:};
-    blobs = cell2mat(blobs);
+%     blobs = [hBlobs_pruned{:}];
+%     blobs = cell2mat(blobs);
+    blobs = cell2mat(cellfun(@cell2mat, hBlobs_pruned, 'UniformOutput', false));
     
     % change the rect format % [x y w h] and add convexity
     for bInd=1:numel(blobs)

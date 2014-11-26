@@ -47,8 +47,8 @@ JBParams = struct(...
 
 if annotate
     % read images
-    img1 = imresize(imread('class1_d5.jpg'), resizeRatio);
-    img2 = imresize(imread('class2_rot15.jpg'), resizeRatio);
+    img1 = imresize(imread('kidblock_7_367_d5.jpg'), resizeRatio);
+    img2 = imresize(imread('kidblock_9_367_d5.jpg'), resizeRatio);
     % obtain annotations
     if exist('ann.mat', 'file') && saveAnnotation
         load('ann.mat');
