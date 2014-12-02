@@ -103,16 +103,18 @@ switch i_method
         o_label = vl_slic(single(imlab), i_params.regionSize, i_params.regularizer);
         o_label = o_label + 1; % one base
         
-        ID2Lbl = unique(o_label(:)');
-%         label_ind = struct('ind', []);
-        label_xymean = zeros(2, numel(ID2Lbl));
-        for lInd=1:numel(ID2Lbl)
-            mask = o_label == ID2Lbl(lInd);
-            [rs, cs] = find(mask);
-            label_xymean(:, lInd) = round([mean(cs); mean(rs)]);
-%             label_ind(lInd).ind = find(mask);
-        end
+%         ID2Lbl = unique(o_label(:)');
+% %         label_ind = struct('ind', []);
+%         label_xymean = zeros(2, numel(ID2Lbl));
+%         for lInd=1:numel(ID2Lbl) %%FIXME: inefficient, need mex implementation
+%             mask = o_label == ID2Lbl(lInd);
+%             [rs, cs] = find(mask);
+%             label_xymean(:, lInd) = round([mean(cs); mean(rs)]);
+% %             label_ind(lInd).ind = find(mask);
+%         end
+        label_xymean = FindSegMeanPos_mex(o_label);
         
+        ID2Lbl = unique(o_label(:)');
         Lbl2ID = ones(max(o_label(:)), 1)*(-1);
         Lbl2ID(ID2Lbl) = find(ID2Lbl);
         

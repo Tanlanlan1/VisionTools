@@ -5,9 +5,9 @@ addpath(genpath('../Superpixel')); %%FIXME
 addpath(genpath('../JointBoost')); %%FIXME
 addpath(genpath('../libMatlabHelper')); %%FIXME
 close all;
-% if matlabpool('size') == 0
-%     matlabpool open;
-% end
+if matlabpool('size') == 0
+    matlabpool open;
+end
 
 annotate = true;
 saveAnnotation = true;
@@ -47,8 +47,8 @@ JBParams = struct(...
 
 if annotate
     % read images
-    img1 = imresize(imread('kidblock_7_367_d5.jpg'), resizeRatio);
-    img2 = imresize(imread('kidblock_9_367_d5.jpg'), resizeRatio);
+    img1 = imresize(imread('ted1_d5.jpg'), resizeRatio);
+    img2 = imresize(imread('ted2_d5.jpg'), resizeRatio);
     % obtain annotations
     if exist('ann.mat', 'file') && saveAnnotation
         load('ann.mat');
