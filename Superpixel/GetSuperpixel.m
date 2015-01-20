@@ -42,7 +42,7 @@ if ~isfield(i_params, 'verbosity')
     i_params.verbosity = 0;
 end
 
-
+o_labelSt = [];
 
 %% run a superpixel algorithm
 switch i_method
