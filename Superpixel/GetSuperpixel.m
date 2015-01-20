@@ -17,6 +17,9 @@ function [ o_label, o_labelSt ] = GetSuperpixel( i_img, i_method, i_params )
 %           'SLIC'              i_params.N: the number of segments
 %                               i_params.verbosity: the level of verbosity [0 (slient), 1]
 % 
+%           'QShift'            
+%                               
+% 
 % ----------
 %   Output:
 % 
@@ -133,6 +136,26 @@ switch i_method
         
         %% rm path
         rmpath(vlfeatmexapthall);
+    case 'QShift'
+        if ~isfield(i_params, 'maxDist')
+            warning('no parameter. Set a default value');
+            i_params.maxDist = 10;
+        end
+        if ~isfield(i_params, 'ratio')
+            warning('no parameter. Set a default value');
+            i_params.ratio = 0.5;
+        end
+        if ~isfield(i_params, 'kernelSize')
+            warning('no parameter. Set a default value');
+            i_params.kernelSize = 2;
+        end
+        [Iseg, labels, maps] = vl_quickseg(i_img, i_params.ratio, i_params.kernelSize, i_params.maxDist);
+        o_label = labels;
+        if i_params.verbosity >= 1
+            figure(30000); clf;
+            imagesc(Iseg);
+        end
+            
     otherwise
         warning('* Incorrect method: %s', i_method);
 end

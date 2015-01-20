@@ -43,12 +43,14 @@ function [ o_feat, o_params ] = GetDenseFeature( i_imgs, i_cues, i_params )
 thisFilePath = fileparts(mfilename('fullpath'));
 addpath([thisFilePath '/Texture']);
 addpath([thisFilePath '/TextonBoost']);
-vlfeatmexpath = [thisFilePath '/../vlfeat/toolbox/mex'];
-vlfeatmexapthall = genpath(vlfeatmexpath);
-addpath(vlfeatmexapthall);
-if ~strfind(getenv('LD_LIBRARY_PATH'), vlfeatmexapthall)
-    setenv('LD_LIBRARY_PATH', [vlfeatmexapthall ':' getenv('LD_LIBRARY_PATH')]);
-end
+run([thisFilePath '/../vlfeat/toolbox/vl_setup.m']);
+% vlfeatmexpath = [thisFilePath '/../vlfeat/toolbox'];
+% vlfeatmexapthall = genpath(vlfeatmexpath);
+% addpath(vlfeatmexapthall);
+% vlfeatmexpath = [thisFilePath '/../vlfeat/toolbox/mex/mexa64'];
+% if isempty(strfind(getenv('LD_LIBRARY_PATH'), vlfeatmexpath))
+%     setenv('LD_LIBRARY_PATH', [vlfeatmexpath ':' getenv('LD_LIBRARY_PATH')]);
+% end
 
 if nargin < 3
     i_params = struct('verbosity', 0);
@@ -113,6 +115,8 @@ for cInd=1:numel(i_cues)
 %             [o_feat{cInd}, o_params] = GetTextonBoostIntFeature(imgs, i_params);
             [o_feat, o_params] = GetTextonBoostIntFeature(imgs, i_params);
             
+        case 'DSIFT'
+            o_feat = GetDenseSIFTFeature(imgs);
         otherwise
             warning('Wrong cue name: %s', i_cues{cInd});
     end
@@ -137,6 +141,19 @@ if i_params.verbosity >= 3
 
 end
 
+end
+
+function [o_feat] = GetDenseSIFTFeature(i_imgs)
+%% init
+o_feat = i_imgs;
+nImgs = numel(i_imgs);
+% %% extract
+% for iInd=1:nImgs
+%     curImg = i_imgs(iInd).img;
+%     [frame, desc] = vl_phow(im2single(curImg));
+%     curFeat = zeros(size(curImg, 1), size(curImg, 2), size(Deesc, 1));
+%     
+% end
 end
 
 function [o_feat] = GetRGBDenseFeature(i_img)
@@ -601,7 +618,7 @@ feats = textonFeats;
 if ~isfield(feats, 'TextonIntImg')
 %     textonFeats_sq = arrayfun(@(x) struct('Texton', x.Texton), textonFeats);
 
-    parfor iInd=1:nImg
+    for iInd=1:nImg
         curFeat = textonFeats(iInd).Texton;
 %         curFeat = textonFeats_sq(iInd).Texton;
         textIntImg = zeros(size(curFeat(1).textonSpImg, 1)+1, size(curFeat(1).textonSpImg, 2)+1, nTexton, 'single');
