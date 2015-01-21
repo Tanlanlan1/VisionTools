@@ -381,6 +381,15 @@ if ~isfield(i_imgs, 'Texton')
         textonImgs = cell(1, 1, numel(baseFeats));
         nTextonsEach = nTexton/numel(baseFeats);
         for cInd=1:numel(baseFeats)
+            switch(baseFeats{cInd})
+                case 'Texture'
+                    sig = .1;
+                case 'DSIFT'
+                    sig = 1e5;
+                otherwise
+                    warning('Improper exponential weighting');
+                    keyboard;
+            end
             curTexture = getfield(curFeat, baseFeats{cInd});
             curTexture_q = double(reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])');
 
@@ -389,7 +398,7 @@ if ~isfield(i_imgs, 'Texton')
             for nnInd=1:nNN
                 [cols, rows] = meshgrid(1:size(textonImg, 2), 1:size(textonImg, 1)); %%FIXME: inefficient
                 linInd = sub2ind(size(textonImg), rows(:), cols(:), double(IND(nnInd, :))');
-                textonImg(linInd) = exp(-DIST(nnInd, :));
+                textonImg(linInd) = exp(-DIST(nnInd, :)/sig);
             end
             textonImgs{1, 1, cInd} = textonImg;
         end
