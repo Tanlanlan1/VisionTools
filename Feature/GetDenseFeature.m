@@ -58,6 +58,7 @@ end
 if ~isfield(i_params, 'verbosity')
     i_params.verbosity = 0;
 end
+o_params = i_params;
 
 %%FIXME: samplingRatio, samplingMask...duplicated concepts, samplingMask is
 %%not used now
@@ -69,8 +70,6 @@ for iInd=1:numel(i_imgs)
 end
 imgs = i_imgs;
 
-% o_feat = cell(1, 1, numel(i_cues));
-% o_feat = struct('feat', [], 'cue', []);
 assert(numel(i_cues) == 1);
 for cInd=1:numel(i_cues)
     switch i_cues{cInd}
@@ -82,6 +81,11 @@ for cInd=1:numel(i_cues)
             assert(size(imgs, 3) == 3);    
             assert(~iscell(imgs));
             o_feat = GetLabDenseFeature(imgs);
+        
+        case 'Texture'
+            assert(~iscell(imgs));
+            o_feat = GetTextureLMFeature(imgs, i_params);
+            o_params = i_params;
             
         case 'Texture_LM'
             assert(~iscell(imgs));
@@ -95,6 +99,9 @@ for cInd=1:numel(i_cues)
         case 'TextonInit'
             o_feat = [];
             [o_params] = GetTexton(imgs, i_params);
+            
+        case 'VW'
+            [o_feat, o_params] = GetVisualWordFeature(i_imgs, i_params);
             
         case 'Texton'
 %             [o_feat{cInd}, o_params] = GetTextonFeature(imgs, i_params);
@@ -147,13 +154,18 @@ function [o_feat] = GetDenseSIFTFeature(i_imgs)
 %% init
 o_feat = i_imgs;
 nImgs = numel(i_imgs);
-% %% extract
-% for iInd=1:nImgs
-%     curImg = i_imgs(iInd).img;
-%     [frame, desc] = vl_phow(im2single(curImg));
-%     curFeat = zeros(size(curImg, 1), size(curImg, 2), size(Deesc, 1));
-%     
-% end
+o_feat(1).DSIFT = [];
+%% extract
+for iInd=1:nImgs
+    I = im2single(rgb2gray(i_imgs(iInd).img));
+    [f, d] = vl_dsift(I);
+
+    assert(f(2, 1) < f(2, 2));
+    d = shiftdim(d, 1);
+    d = reshape(d, size(I, 1)-9, size(I, 2)-9, size(d, 2)); %%FIXME: const!
+    denseFeat = padarray(d, [4, 4], 0, 'pre'); %%FIXME: const!
+    o_feat(iInd).DSIFT = padarray(denseFeat, [5 5], 0, 'post'); %%FIXME: const!
+end
 end
 
 function [o_feat] = GetRGBDenseFeature(i_img)
@@ -282,6 +294,129 @@ if verbosity >= 2
 end
 end
 
+function [o_params] = GetVisualWord(i_imgs, i_cues, i_params)
+%% check i_params
+assert(isfield(i_params, 'nTexton'));
+nTexton = i_params.nTexton;
+
+if ~isfield(i_params, 'samplingRatio')
+    i_params.samplingRatio = 1;
+end
+samplingRatio = i_params.samplingRatio;
+verbosity = i_params.verbosity;
+nImgs = numel(i_imgs);
+feats = i_imgs;
+o_params = i_params;
+%% extract textons if not exist
+for cInd=1:numel(i_cues)
+    cueStr = i_cues{cInd};
+    if ~isfield(i_params, 'textons') || isempty(i_params.textons)
+        % get texture
+        switch(cueStr)
+            case 'Texture'
+                if ~isfield(i_imgs, 'Texture')
+                    [feats, ~] = GetTextureLMFeature(feats, i_params);
+                end
+            case 'DSIFT'
+                if ~isfield(i_imgs, 'DSIFT')
+                    feats = GetDenseSIFTFeature(feats);
+                end
+        end
+        % get texton features
+        if verbosity >= 1
+            sTic = tic;
+            fprintf('* extract textons...');
+        end
+        data = cell(1, nImgs);
+        for iInd=1:nImgs
+%             curTexture = feats(iInd).Texture;
+            curTexture = getfield(feats, {iInd}, cueStr);
+            data_is = reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])';
+            step = round(1/samplingRatio);
+            data{iInd} = data_is(:, 1:step:end);
+        end
+        data = double(cell2mat(data));
+        if verbosity >= 1
+            fprintf('from %d data...', size(data, 2));
+        end
+        nTextonsEach = nTexton/numel(i_cues);
+        o_params.textons{cInd} = vl_kmeans(data, nTextonsEach, 'Algorithm', 'Elkan');
+        o_params.kdtree{cInd} = vl_kdtreebuild(o_params.textons{cInd}); % L2 distance
+
+        if verbosity >= 1
+            fprintf('done (%s sec.)\n', num2str(toc(sTic)));
+        end
+
+    end
+end
+%% return
+
+end
+
+function [o_feats, o_params] = GetVisualWordFeature(i_imgs, i_params)
+
+if ~isfield(i_params, 'nNN')
+    i_params.nNN = max(1, round(i_params.nTexton*0.1));
+end
+baseFeats = i_params.baseFeats;
+nNN = i_params.nNN;
+verbosity = i_params.verbosity;
+nImgs = numel(i_imgs);
+feats = i_imgs;
+nTexton = i_params.nTexton;
+%% extract textons
+i_params = GetVisualWord(i_imgs, baseFeats, i_params);
+textons = i_params.textons;
+kdtree = i_params.kdtree;
+
+%% obtain texton features
+if ~isfield(i_imgs, 'Texton')
+    if verbosity >= 1
+        sTic = tic;
+        fprintf('* obtain texton features...');
+    end
+    feats_added = cell(numel(feats), 1);
+    for iInd=1:nImgs
+        curFeat = feats(iInd);
+        textonImgs = cell(1, 1, numel(baseFeats));
+        nTextonsEach = nTexton/numel(baseFeats);
+        for cInd=1:numel(baseFeats)
+            curTexture = getfield(curFeat, baseFeats{cInd});
+            curTexture_q = double(reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])');
+
+            [IND, DIST] = vl_kdtreequery(kdtree{cInd}, textons{cInd}, curTexture_q, 'numNeighbors', nNN);
+            textonImg = zeros(size(curTexture, 1), size(curTexture, 2), nTextonsEach);
+            for nnInd=1:nNN
+                [cols, rows] = meshgrid(1:size(textonImg, 2), 1:size(textonImg, 1)); %%FIXME: inefficient
+                linInd = sub2ind(size(textonImg), rows(:), cols(:), double(IND(nnInd, :))');
+                textonImg(linInd) = exp(-DIST(nnInd, :));
+            end
+            textonImgs{1, 1, cInd} = textonImg;
+        end
+        textonImg = cell2mat(textonImgs);
+        assert(size(textonImg, 3) == nTexton);
+        % sparsify
+        TextonSt = struct('textonSpImg', []);
+        for tInd=1:nTexton
+            TextonSt(tInd).textonSpImg = sparse(textonImg(:, :, tInd));
+        end
+        curFeat.Texton = TextonSt;
+        feats_added{iInd} = curFeat;
+    end
+    feats = reshape(cell2mat(feats_added), size(i_imgs));
+    
+    if verbosity >= 1
+        fprintf('done (%s sec.)\n', num2str(toc(sTic)));
+    end
+end
+
+
+%% return
+o_feats = feats;
+o_params = i_params;
+
+end
+
 function [o_feats, o_params] = GetTextonFeature(i_imgs, i_params)
 % %% check i_params
 % assert(isfield(i_params, 'nTexton'));
@@ -309,29 +444,6 @@ kdtree = i_params.kdtree;
 if ~isfield(i_imgs, 'Texture')
     [feats, fb] = GetTextureLMFeature(feats, i_params);
 end
-% 
-% %% extract textons if not exist
-% if ~isfield(i_params, 'textons') || isempty(i_params.textons)
-%     if verbosity >= 1
-%         fprintf('* extract textons');
-%     end
-%     data = cell(1, nImgs);
-%     for iInd=1:nImgs
-%         curTexture = feats(iInd).Texture;
-%         data_is = reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])';
-%         step = round(1/samplingRatio);
-%         data{iInd} = data_is(:, 1:step:end);
-%     end
-%     data = cell2mat(data);
-%     if verbosity >= 1
-%         fprintf(' from %d data\n', size(data, 2));
-%     end
-%     textons = vl_kmeans(data, nTexton, 'Algorithm', 'Elkan');
-%     kdtree = vl_kdtreebuild(textons); % L2 distance
-% else
-%     textons = i_params.textons;
-%     kdtree = i_params.kdtree;
-% end
 
 %% obtain texton features
 if ~isfield(i_imgs, 'Texton')
