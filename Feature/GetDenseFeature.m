@@ -628,7 +628,7 @@ for pInd=1:nParts
         ys = randi(LOFWH(2), [2, 1]);
     end
     
-    o_parts = [o_parts [min(xs); max(xs); min(ys); max(ys)]];
+    o_parts = [o_parts [min(xs); max(xs); min(ys); max(ys)]]; %%FIXME: how about [x y w h]??
 end
 
 if verbosity >= 2
