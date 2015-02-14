@@ -188,7 +188,7 @@ if isfield(i_img, 'Texture')
 end
 if verbosity >= 1
     sTic = tic;
-    fprintf('* [Texture] Obtain texture responses...');
+    fprintf('[Texture] Obtain texture responses...');
 end
 % compute
 for i=1:nImgs
@@ -556,7 +556,7 @@ kdtree = i_params.kdtree;
 if ~isfield(i_imgs, 'Texton')
     if verbosity >= 1
         sTic = tic;
-        fprintf(' [Texton] Extract texton features...');
+        fprintf('[Texton] Extract texton features...');
     end
     feats_added = cell(numel(feats), 1);
     for iInd=1:nImgs
@@ -675,7 +675,7 @@ end
 %% init parts
 if verbosity >= 1
     sTic = tic;
-    fprintf('* [Textonboost subwindows] Randomly generate subwindows: ');
+    fprintf('[Textonboost subwindows] Randomly generate subwindows: ');
 end
 
 if ~isfield(i_params, 'parts')
