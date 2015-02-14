@@ -188,7 +188,7 @@ if isfield(i_img, 'Texture')
 end
 if verbosity >= 1
     sTic = tic;
-    fprintf('* obtain texture information...');
+    fprintf('* [Texture] Obtain texture responses...');
 end
 % compute
 for i=1:nImgs
@@ -249,7 +249,7 @@ if ~isfield(i_params, 'textons') || isempty(i_params.textons)
     % get texton features
     if verbosity >= 1
         sTic = tic;
-        fprintf('* extract textons...');
+        fprintf('[Texton] Find textons...');
     end
     data = cell(1, nImgs);
     for iInd=1:nImgs
@@ -325,7 +325,7 @@ for cInd=1:numel(i_cues)
         % get texton features
         if verbosity >= 1
             sTic = tic;
-            fprintf('* extract textons...');
+            fprintf('[VisualWord] Find visual words...');
         end
         data = cell(1, nImgs);
         for iInd=1:nImgs
@@ -373,7 +373,7 @@ kdtree = i_params.kdtree;
 if ~isfield(i_imgs, 'Texton')
     if verbosity >= 1
         sTic = tic;
-        fprintf('* obtain texton features...');
+        fprintf('[Visual word] Obtain visual word responses...');
     end
     feats_added = cell(numel(feats), 1);
     for iInd=1:nImgs
@@ -458,7 +458,7 @@ end
 if ~isfield(i_imgs, 'Texton')
     if verbosity >= 1
         sTic = tic;
-        fprintf('* obtain texton features...');
+        fprintf('[Texton] Obtain texton responses...');
     end
     feats_added = cell(numel(feats), 1);
     for iInd=1:nImgs
@@ -556,7 +556,7 @@ kdtree = i_params.kdtree;
 if ~isfield(i_imgs, 'Texton')
     if verbosity >= 1
         sTic = tic;
-        fprintf('* obtain texton features...');
+        fprintf(' [Texton] Extract texton features...');
     end
     feats_added = cell(numel(feats), 1);
     for iInd=1:nImgs
@@ -645,6 +645,7 @@ end
 function [o_params] = InitTextonBoostParts(i_params)
 assert(isfield(i_params, 'nPart'));
 assert(isfield(i_params, 'LOFilterWH'));
+verbosity = i_params.verbosity;
 if mod(i_params.LOFilterWH(1), 1) ~= 0
     if i_params.verbosity >= 1
         warning('non-integer width of a layout filter. Will be floored');
@@ -672,10 +673,28 @@ if mod(i_params.LOFilterWH(2), 2) == 0
 end
 
 %% init parts
-i_params.parts = GenTextonBoostParts(i_params);
+if verbosity >= 1
+    sTic = tic;
+    fprintf('* [Textonboost subwindows] Randomly generate subwindows: ');
+end
+
+if ~isfield(i_params, 'parts')
+    if verbosity >= 1
+        fprintf('generate...');
+    end
+    i_params.parts = GenTextonBoostParts(i_params);
+else
+    if verbosity >= 1
+        fprintf('use the existing one...');
+    end
+end
+if verbosity >= 1
+    fprintf('done (%s sec.)\n', num2str(toc(sTic)));
+end
 
 %% return
 o_params = i_params;
+
 
 end
 
@@ -733,7 +752,7 @@ end
 %% obtain integral images
 if verbosity >= 1
     sTic = tic;
-    fprintf('* obtain integral images...');
+    fprintf('[Textonboost] Obtain integral images...');
 end
 feats = textonFeats;
 if ~isfield(feats, 'TextonIntImg')
