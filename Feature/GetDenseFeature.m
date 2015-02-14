@@ -373,7 +373,7 @@ kdtree = i_params.kdtree;
 if ~isfield(i_imgs, 'Texton')
     if verbosity >= 1
         sTic = tic;
-        fprintf('[Visual word] Obtain visual word responses...');
+        fprintf('[VisualWord] Obtain visual word responses...');
     end
     feats_added = cell(numel(feats), 1);
     for iInd=1:nImgs
