@@ -19,7 +19,7 @@ function [ o_feat, o_params ] = GetDenseFeature( i_imgs, i_cues, i_params )
 %           i_params.samplingRatio  
 %           i_params.nNN
 %           i_params.nTexton        ('texton', 'textonBoost') the number of textons
-%           i_params.nPart          ('textonBoost') the number of a subwindow
+%           i_params.nParts          ('textonBoost') the number of a subwindow
 %           i_params.LOFilterWH     ('textonBoost') the width and height of a
 %                                   layout filter
 %           i_params.sampleMask(rm)     ('textonBoost' or for all) extract features only
@@ -59,10 +59,6 @@ if ~isfield(i_params, 'verbosity')
     i_params.verbosity = 0;
 end
 o_params = i_params;
-
-%%FIXME: samplingRatio, samplingMask...duplicated concepts, samplingMask is
-%%not used now
-
 
 %% extract features
 for iInd=1:numel(i_imgs)
@@ -134,19 +130,19 @@ end
 % o_feat = cell2mat(cellfun(@(x) cell2mat(x), o_feat, 'UniformOutput', false));
 % o_feat = cell2mat(o_feat);
 
-%% show
-if i_params.verbosity >= 3
-    iInd = randi(numel(o_feat));
-    fInd = randi(size(o_feat(iInd).feat, 3));
-    
-    h = figure(23912);
-    figure(h);
-    imagesc(o_feat(iInd).feat(:, :, fInd));
-    axis image;
-    colorbar;
-    title(sprintf('%dth image, %dth feature', iInd, fInd));
-
-end
+% %% show
+% if i_params.verbosity >= 3
+%     iInd = randi(numel(o_feat));
+%     fInd = randi(size(o_feat(iInd).feat, 3));
+%     
+%     h = figure(23912);
+%     figure(h);
+%     imagesc(o_feat(iInd).feat(:, :, fInd));
+%     axis image;
+%     colorbar;
+%     title(sprintf('%dth image, %dth feature', iInd, fInd));
+% 
+% end
 
 end
 
@@ -194,18 +190,19 @@ end
 for i=1:nImgs
     img = rgb2gray(i_img(i).img);
     img_pad = padarray(img, [(size(Fs, 1)-1)/2 (size(Fs, 2)-1)/2], 'symmetric', 'both');
+    filters = rot90(Fs, 2);
     responses = zeros(size(img, 1), size(img, 2), size(Fs, 3));
-    for fInd=1:size(Fs, 3)
-        responses(:, :, fInd) = conv2(img_pad, Fs(:, :, fInd), 'valid'); % symetric filters, so don't need to flip
+    for fInd=1:size(filters, 3)
+        responses(:, :, fInd) = conv2(img_pad, filters(:, :, fInd), 'valid'); % symetric filters, so don't need to flip
     end
     o_feat(i).Texture = responses;
 end
-% add also colors 
-%%FIXME: not good...
-for iInd=1:nImgs 
-    % add colors
-    o_feat(iInd).Texture = cat(3, o_feat(iInd).Texture, GetRGBDenseFeature(o_feat(iInd).img));
-end
+% % add also colors 
+% %%FIXME: not good...
+% for iInd=1:nImgs 
+%     % add colors
+%     o_feat(iInd).Texture = cat(3, o_feat(iInd).Texture, GetRGBDenseFeature(o_feat(iInd).img));
+% end
 if verbosity >= 1
     fprintf('done (%s sec.)\n', num2str(toc(sTic)));
 end
@@ -232,10 +229,13 @@ function [o_params] = GetTexton(i_imgs, i_params)
 assert(isfield(i_params, 'nTexton'));
 nTexton = i_params.nTexton;
 
-if ~isfield(i_params, 'samplingRatio')
-    i_params.samplingRatio = 1;
-end
-samplingRatio = i_params.samplingRatio;
+% if ~isfield(i_params, 'samplingRatio')
+%     i_params.samplingRatio = 1;
+% end
+% samplingRatio = i_params.samplingRatio;
+assert(isfield(i_params, 'nSamplesForVW'));
+nSamplesForVW = i_params.nSamplesForVW;
+
 verbosity = i_params.verbosity;
 nImgs = numel(i_imgs);
 feats = i_imgs;
@@ -255,8 +255,10 @@ if ~isfield(i_params, 'textons') || isempty(i_params.textons)
     for iInd=1:nImgs
         curTexture = feats(iInd).Texture;
         data_is = reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])';
-        step = round(1/samplingRatio);
-        data{iInd} = data_is(:, 1:step:end);
+%         step = round(1/samplingRatio);
+%         data{iInd} = data_is(:, 1:step:end);
+        ind_samples = randi(size(data_is, 2), [1 nSamplesForVW]);
+        data{iInd} = data_is(:, ind_samples);
     end
     data = cell2mat(data);
     if verbosity >= 1
@@ -267,8 +269,20 @@ if ~isfield(i_params, 'textons') || isempty(i_params.textons)
 
     if verbosity >= 1
         fprintf('done (%s sec.)\n', num2str(toc(sTic)));
+    end 
+    if verbosity >= 3 
+        % textons
+        fb_c = cell(size(fb, 3), 1);
+        for i=1:size(fb, 3)
+            fb_c{i} = fb(:, :, i);
+        end
+        [tim, tperm] = visTextons(textons, fb_c);
+        resp_norm = cellfun(@(r) 0.01*r./max(abs(r(:))), tim(tperm), 'UniformOutput', false);
+        imgarray = cell2mat(reshape(resp_norm, [1 1 1 nTexton]));
+        figure(71683); clf;
+        montage(imgarray, 'DisplayRange', [min(imgarray(:)), max(imgarray(:))]);
+        axis image; colorbar;
     end
-    
 else
     textons = i_params.textons;
     kdtree = i_params.kdtree;
@@ -279,19 +293,7 @@ o_params = i_params;
 o_params.textons = textons;
 o_params.kdtree = kdtree;
 
-if verbosity >= 2
-    % textons
-    fb_c = cell(size(fb, 3), 1);
-    for i=1:size(fb, 3)
-        fb_c{i} = fb(:, :, i);
-    end
-    [tim, tperm] = visTextons(textons, fb_c);
-    resp_norm = cellfun(@(r) 0.01*r./max(abs(r(:))), tim(tperm), 'UniformOutput', false);
-    imgarray = cell2mat(reshape(resp_norm, [1 1 1 nTexton]));
-    figure(71683); clf;
-    montage(imgarray, 'DisplayRange', [min(imgarray(:)), max(imgarray(:))]);
-    axis image; colorbar;
-end
+
 end
 
 function [o_params] = GetVisualWord(i_imgs, i_cues, i_params)
@@ -299,10 +301,13 @@ function [o_params] = GetVisualWord(i_imgs, i_cues, i_params)
 assert(isfield(i_params, 'nTexton'));
 nTexton = i_params.nTexton;
 
-if ~isfield(i_params, 'samplingRatio')
-    i_params.samplingRatio = 1;
-end
-samplingRatio = i_params.samplingRatio;
+% if ~isfield(i_params, 'samplingRatio')
+%     i_params.samplingRatio = 1;
+% end
+% samplingRatio = i_params.samplingRatio;
+assert(isfield(i_params, 'nSamplesForVW'));
+nSamplesForVW = i_params.nSamplesForVW;
+
 verbosity = i_params.verbosity;
 nImgs = numel(i_imgs);
 feats = i_imgs;
@@ -315,7 +320,7 @@ for cInd=1:numel(i_cues)
         switch(cueStr)
             case 'Texture'
                 if ~isfield(i_imgs, 'Texture')
-                    [feats, ~] = GetTextureLMFeature(feats, i_params);
+                    [feats, fb] = GetTextureLMFeature(feats, i_params);
                 end
             case 'DSIFT'
                 if ~isfield(i_imgs, 'DSIFT')
@@ -332,19 +337,62 @@ for cInd=1:numel(i_cues)
 %             curTexture = feats(iInd).Texture;
             curTexture = getfield(feats, {iInd}, cueStr);
             data_is = reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])';
-            step = round(1/samplingRatio);
-            data{iInd} = data_is(:, 1:step:end);
+%             step = round(1/samplingRatio);
+%             data{iInd} = data_is(:, 1:step:end);
+            ind_samples = randi(size(data_is, 2), [1 nSamplesForVW]);
+            data{iInd} = data_is(:, ind_samples);
         end
         data = double(cell2mat(data));
         if verbosity >= 1
             fprintf('from %d data...', size(data, 2));
         end
         nTextonsEach = nTexton/numel(i_cues);
-        o_params.textons{cInd} = vl_kmeans(data, nTextonsEach, 'Algorithm', 'Elkan');
-        o_params.kdtree{cInd} = vl_kdtreebuild(o_params.textons{cInd}); % L2 distance
+        o_params.textons{cInd} = vl_kmeans(data, nTextonsEach, 'Algorithm', 'Elkan', 'Distance', 'L1'); % % L1 distance
+        o_params.kdtree{cInd} = vl_kdtreebuild(o_params.textons{cInd}, 'Distance', 'L1'); % L1 distance
+
+%         dimension = size(data, 1);
+%         numClusters = nTextonsEach;
+%         [initMeans, assignments] = vl_kmeans(data, nTextonsEach, 'Algorithm', 'Elkan', 'Distance', 'L1');
+%         initCovariances = zeros(dimension,numClusters);
+%         initPriors = zeros(1,numClusters);
+% 
+%         % Find the initial means, covariances and priors
+%         for i=1:numClusters
+%             data_k = data(:,assignments==i);
+%             initPriors(i) = size(data_k,2) / numClusters;
+% 
+%             if size(data_k,1) == 0 || size(data_k,2) == 0
+%                 initCovariances(:,i) = diag(cov(data'));
+%             else
+%                 initCovariances(:,i) = diag(cov(data_k'));
+%             end
+%         end
+%         
+%         o_params.textons{cInd} = vl_gmm(data, nTextonsEach, ...
+%             'initialization','custom', ...
+%             'InitMeans',initMeans, ...
+%             'InitCovariances',initCovariances, ...
+%             'InitPriors',initPriors);
+%         o_params.kdtree{cInd} = vl_kdtreebuild(o_params.textons{cInd}); % L2 distance
 
         if verbosity >= 1
             fprintf('done (%s sec.)\n', num2str(toc(sTic)));
+        end
+        if verbosity >= 3
+            if strcmp(cueStr, 'Texture')
+                fb = makeLMfilters;
+                % visualize vws
+                vws = o_params.textons{cInd};
+                vws_filters = cell(1, 1, 1, nTextonsEach);
+                for vwInd=1:nTextonsEach
+                    vws_filters{vwInd} = sum(bsxfun(@times, fb, reshape(vws(:, vwInd), [1 1 numel(vws(:, vwInd))])), 3);
+                    vws_filters{vwInd} = vws_filters{vwInd}./norm(vws_filters{vwInd}(:)); % L1 normalization
+                end
+
+                figure(1451243); 
+                I_vws = cell2mat(vws_filters);
+                montage(I_vws, 'DisplayRange', [min(I_vws(:)) max(I_vws(:))]);
+            end
         end
 
     end
@@ -356,7 +404,7 @@ end
 function [o_feats, o_params] = GetVisualWordFeature(i_imgs, i_params)
 
 if ~isfield(i_params, 'nNN')
-    i_params.nNN = max(1, round(i_params.nTexton*0.1));
+    i_params.nNN = max(1, round(i_params.nTexton*0.5));
 end
 baseFeats = i_params.baseFeats;
 nNN = i_params.nNN;
@@ -368,6 +416,8 @@ nTexton = i_params.nTexton;
 i_params = GetVisualWord(i_imgs, baseFeats, i_params);
 textons = i_params.textons;
 kdtree = i_params.kdtree;
+
+warning('DSIFT: what is the proper sig?');
 
 %% obtain texton features
 if ~isfield(i_imgs, 'Texton')
@@ -381,26 +431,27 @@ if ~isfield(i_imgs, 'Texton')
         textonImgs = cell(1, 1, numel(baseFeats));
         nTextonsEach = nTexton/numel(baseFeats);
         for cInd=1:numel(baseFeats)
-            switch(baseFeats{cInd})
-                case 'Texture'
-                    sig = .1;
-                case 'DSIFT'
-                    sig = 1e5;
-                otherwise
-                    warning('Improper exponential weighting');
-                    keyboard;
-            end
+            sig = .1;
+%             switch(baseFeats{cInd})
+%                 case 'Texture'
+%                     sig = .1;
+%                 case 'DSIFT'
+%                     sig = 1e5;
+%                 otherwise
+%                     warning('Improper exponential weighting');
+%                     keyboard;
+%             end
             curTexture = getfield(curFeat, baseFeats{cInd});
             curTexture_q = double(reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])');
 
-            [IND, DIST] = vl_kdtreequery(kdtree{cInd}, textons{cInd}, curTexture_q, 'numNeighbors', nNN);
+            [IND, DIST] = vl_kdtreequery(kdtree{cInd}, textons{cInd}, curTexture_q, 'numNeighbors', nNN); %L1 distance
             textonImg = zeros(size(curTexture, 1), size(curTexture, 2), nTextonsEach);
+            [cols, rows] = meshgrid(1:size(textonImg, 2), 1:size(textonImg, 1)); %%FIXME: inefficient
             for nnInd=1:nNN
-                [cols, rows] = meshgrid(1:size(textonImg, 2), 1:size(textonImg, 1)); %%FIXME: inefficient
                 linInd = sub2ind(size(textonImg), rows(:), cols(:), double(IND(nnInd, :))');
                 textonImg(linInd) = exp(-DIST(nnInd, :)/sig);
             end
-            textonImgs{1, 1, cInd} = textonImg;
+            textonImgs{1, 1, cInd} = bsxfun(@times, textonImg, 1./sum(abs(textonImg), 3)); %L1 normalization
         end
         textonImg = cell2mat(textonImgs);
         assert(size(textonImg, 3) == nTexton);
@@ -428,14 +479,6 @@ end
 
 function [o_feats, o_params] = GetTextonFeature(i_imgs, i_params)
 % %% check i_params
-% assert(isfield(i_params, 'nTexton'));
-% nTexton = i_params.nTexton;
-% 
-% if ~isfield(i_params, 'samplingRatio')
-%     i_params.samplingRatio = 1;
-% end
-% samplingRatio = i_params.samplingRatio;
-
 if ~isfield(i_params, 'nNN')
     i_params.nNN = max(1, round(i_params.nTexton*0.1));
 end
@@ -488,31 +531,33 @@ if ~isfield(i_imgs, 'Texton')
     if verbosity >= 1
         fprintf('done (%s sec.)\n', num2str(toc(sTic)));
     end
+    %% visualize
+    if verbosity >= 3
+    %     % textons
+    %     fb_c = cell(size(fb, 3), 1);
+    %     for i=1:size(fb, 3)
+    %         fb_c{i} = fb(:, :, i);
+    %     end
+    %     [tim, tperm] = visTextons(textons, fb_c);
+    %     resp_norm = cellfun(@(r) 0.01*r./max(abs(r(:))), tim(tperm), 'UniformOutput', false);
+    %     imgarray = cell2mat(reshape(resp_norm, [1 1 1 nTexton]));
+    %     figure(71683); clf;
+    %     montage(imgarray, 'DisplayRange', [min(imgarray(:)), max(imgarray(:))]);
+    %     axis image; colorbar;
+
+        % texton feature
+        riInd = randi(nImgs, 1);
+        curImg = feats(riInd).img;
+        [~ , curFeat_max] = max(feats(riInd).feat, [], 3);
+        figure(76234); clf;
+        subplot(1, 2, 1); imshow(curImg);
+        subplot(1, 2, 2); imagesc(curFeat_max); axis image;
+    end
+    
 end
 
 
-%% visualize
-if verbosity >= 2
-%     % textons
-%     fb_c = cell(size(fb, 3), 1);
-%     for i=1:size(fb, 3)
-%         fb_c{i} = fb(:, :, i);
-%     end
-%     [tim, tperm] = visTextons(textons, fb_c);
-%     resp_norm = cellfun(@(r) 0.01*r./max(abs(r(:))), tim(tperm), 'UniformOutput', false);
-%     imgarray = cell2mat(reshape(resp_norm, [1 1 1 nTexton]));
-%     figure(71683); clf;
-%     montage(imgarray, 'DisplayRange', [min(imgarray(:)), max(imgarray(:))]);
-%     axis image; colorbar;
 
-    % texton feature
-    riInd = randi(nImgs, 1);
-    curImg = feats(riInd).img;
-    [~ , curFeat_max] = max(feats(riInd).feat, [], 3);
-    figure(76234); clf;
-    subplot(1, 2, 1); imshow(curImg);
-    subplot(1, 2, 2); imagesc(curFeat_max); axis image;
-end
 
 %% return
 o_feats = feats;
@@ -529,15 +574,6 @@ function [o_feats, o_params] = GetTextonFeatureEff(i_imgs, i_params)
 
 
 
-
-% %% check i_params
-% assert(isfield(i_params, 'nTexton'));
-% nTexton = i_params.nTexton;
-% 
-% if ~isfield(i_params, 'samplingRatio')
-%     i_params.samplingRatio = 1;
-% end
-% samplingRatio = i_params.samplingRatio;
 
 if ~isfield(i_params, 'nNN')
     i_params.nNN = max(1, round(i_params.nTexton*0.1));
@@ -590,7 +626,7 @@ end
 
 
 %% visualize
-if verbosity >= 2
+if verbosity >= 3
     % texton feature
     riInd = randi(nImgs, 1);
     curImg = feats(riInd).img;
@@ -613,7 +649,7 @@ end
 function [ o_parts ] = GenTextonBoostParts( i_params )
 
 LOFWH = i_params.LOFilterWH;
-nParts = i_params.nPart;
+nParts = i_params.nParts;
 verbosity = i_params.verbosity;
 
 o_parts = [];
@@ -631,7 +667,7 @@ for pInd=1:nParts
     o_parts = [o_parts [min(xs); max(xs); min(ys); max(ys)]]; %%FIXME: how about [x y w h]??
 end
 
-if verbosity >= 2
+if verbosity >= 3
     figure(34125); clf;
     rectangle('Position', [1 1 LOFWH(:)'-1]); hold on; % layoutFilter
     for pInd=1:nParts
@@ -643,7 +679,7 @@ end
 end
 
 function [o_params] = InitTextonBoostParts(i_params)
-assert(isfield(i_params, 'nPart'));
+assert(isfield(i_params, 'nParts'));
 assert(isfield(i_params, 'LOFilterWH'));
 verbosity = i_params.verbosity;
 if mod(i_params.LOFilterWH(1), 1) ~= 0
@@ -701,7 +737,7 @@ end
 function [o_feats, o_params] = GetTextonBoostIntFeature(i_imgs, i_params)
 
 %% init
-assert(isfield(i_params, 'nPart'));
+assert(isfield(i_params, 'nParts'));
 assert(isfield(i_params, 'nTexton'));
 assert(isfield(i_params, 'LOFilterWH'));
 verbosity = i_params.verbosity;
