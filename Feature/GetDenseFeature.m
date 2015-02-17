@@ -347,8 +347,8 @@ for cInd=1:numel(i_cues)
             fprintf('from %d data...', size(data, 2));
         end
         nTextonsEach = nTexton/numel(i_cues);
-        o_params.textons{cInd} = vl_kmeans(data, nTextonsEach, 'Algorithm', 'Elkan', 'Distance', 'L1'); % % L1 distance
-        o_params.kdtree{cInd} = vl_kdtreebuild(o_params.textons{cInd}, 'Distance', 'L1'); % L1 distance
+        o_params.textons{cInd} = vl_kmeans(data, nTextonsEach, 'Algorithm', 'Elkan', 'Distance', i_params.distance); % % L1 distance
+        o_params.kdtree{cInd} = vl_kdtreebuild(o_params.textons{cInd}, 'Distance', i_params.distance); % L1 distance
 
 %         dimension = size(data, 1);
 %         numClusters = nTextonsEach;
