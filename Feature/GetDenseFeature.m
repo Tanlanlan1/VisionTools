@@ -304,7 +304,7 @@ nTexton = i_params.nTexton;
 % if ~isfield(i_params, 'samplingRatio')
 %     i_params.samplingRatio = 1;
 % end
-% samplingRatio = i_params.samplingRatio;
+samplingRatio = i_params.samplingRatio;
 assert(isfield(i_params, 'nSamplesForVW'));
 nSamplesForVW = i_params.nSamplesForVW;
 
@@ -330,17 +330,17 @@ for cInd=1:numel(i_cues)
         % get texton features
         if verbosity >= 1
             sTic = tic;
-            fprintf('[VisualWord] Find visual words...');
+            fprintf('[VisualWord] Find visual words for %s...', cueStr);
         end
         data = cell(1, nImgs);
         for iInd=1:nImgs
 %             curTexture = feats(iInd).Texture;
             curTexture = getfield(feats, {iInd}, cueStr);
             data_is = reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])';
-%             step = round(1/samplingRatio);
-%             data{iInd} = data_is(:, 1:step:end);
-            ind_samples = randi(size(data_is, 2), [1 nSamplesForVW]);
-            data{iInd} = data_is(:, ind_samples);
+            step = round(1/samplingRatio);
+            data{iInd} = data_is(:, 1:step:end);
+%             ind_samples = randi(size(data_is, 2), [1 nSamplesForVW]);
+%             data{iInd} = data_is(:, ind_samples);
         end
         data = double(cell2mat(data));
         if verbosity >= 1
