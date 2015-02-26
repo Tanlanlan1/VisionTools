@@ -92,6 +92,9 @@ for cInd=1:numel(i_cues)
 %             img = rgb2gray(img);
             o_feat = GetTextureMR8Feature(imgs);
             
+        case 'SelfSimilarity'
+            o_feat = GetSelfSimilarityFeature( imgs, i_params );
+            
         case 'TextonInit'
             o_feat = [];
             [o_params] = GetTexton(imgs, i_params);
@@ -146,6 +149,76 @@ end
 
 end
 
+function SaveData(fn, data)
+save(fn, 'data');
+end
+
+function [data] = LoadData(fn)
+ldst = load(fn);
+data = ldst.data;
+end
+
+function [ o_feats ] = GetSelfSimilarityFeature( i_imgs, i_params )
+%GETSELFSIMILARITYFEATURE Summary of this function goes here
+%   Detailed explanation goes here
+
+warning('SelfSimilarity: default parameter settings');
+ssparams = struct('patch_size', 5, 'desc_rad', 40, 'nrad', 3, 'nang', 12, 'var_noise', 300000, 'saliency_thresh', 0.7, 'homogeneity_thresh', 0.7, 'snn_thresh', 0.85);
+
+o_feats = i_imgs;
+o_feats(1).SelfSimilarity = [];
+%% compute features
+parfor iInd=1:numel(i_imgs)
+    % pad
+    ssdmargin = ssparams.desc_rad + (ssparams.patch_size-1)/2;
+    I = i_imgs(iInd).img;
+    assert(isa(I, 'double') && all(I(:)<2));
+    I_gray = padarray(rgb2gray(I), [ssdmargin ssdmargin], 'symmetric', 'both');
+    I_ssd = double(im2uint8(I_gray));
+    % fn
+    [pathstr, name, ~] = fileparts(i_imgs(iInd).filename);
+    fn = sprintf('%s/%s_scale_%s_selfsimilarity.mat', pathstr, name, num2str(i_imgs(iInd).scale, 4));
+    if i_params.fSaveFeats
+        if exist(fn, 'file')
+            % load
+            ssdesc = LoadData(fn);
+        else
+            % compute
+            ssdesc = ComputeSelfSimilarityFeature(I_ssd, ssparams);
+            SaveData(fn, ssdesc);
+        end
+    else
+        ssdesc = ComputeSelfSimilarityFeature(I_ssd, ssparams);
+    end
+    % reshape
+    feats = zeros(size(i_imgs(iInd).img, 1), size(i_imgs(iInd).img, 2), size(ssdesc.resp, 1));
+    linind = sub2ind([size(I_gray, 1), size(I_gray, 2)], ssdesc.draw_coords(2, :), ssdesc.draw_coords(1, :));
+    for fInd=1:size(feats, 3);
+        feat = zeros(size(feats, 1)+ssdmargin*2, size(feats, 2)+ssdmargin*2);
+        feat(linind) = ssdesc.resp(fInd, :);
+        % discard results on the pad
+        feat(1:ssdmargin, :) = [];
+        feat(end-ssdmargin+1:end, :) = [];
+        feat(:, 1:ssdmargin) = [];
+        feat(:, end-ssdmargin+1:end) = [];
+        % save
+        feats(:, :, fInd) = feat;
+    end
+    o_feats(iInd).SelfSimilarity = feats;
+end
+
+end
+
+function [ssdesc] = ComputeSelfSimilarityFeature(I, ssparams)
+% assert(isa(I, 'double') && all(I(:)<2));
+tID = tic;
+% [resp, draw_coords, salient_coords, homogeneous_coords, snn_coords] = mexCalcSsdescs(double(im2uint8(rgb2gray(I))), ssparams);
+[resp, draw_coords, salient_coords, homogeneous_coords, snn_coords] = mexCalcSsdescs(I, ssparams);
+fprintf('* selfsimilarity...%s sec.\n', num2str(toc(tID)));
+ssdesc = struct('resp', resp, 'draw_coords', draw_coords, 'salient_coords', salient_coords, 'homogeneous_coords', homogeneous_coords, 'snn_coords', snn_coords);
+end
+
+
 function [o_feat] = GetDenseSIFTFeature(i_imgs)
 %% init
 o_feat = i_imgs;
@@ -180,29 +253,52 @@ o_filterBank = Fs;
 verbosity = i_params.verbosity;
 % check precomputed results
 if isfield(i_img, 'Texture')
+    warning('use precomputed Texture in the structure')
     return;
 end
 if verbosity >= 1
     sTic = tic;
     fprintf('[Texture] Obtain texture responses...');
 end
-% compute
+%% compute
+
 for i=1:nImgs
-    img = rgb2gray(i_img(i).img);
-    img_pad = padarray(img, [(size(Fs, 1)-1)/2 (size(Fs, 2)-1)/2], 'symmetric', 'both');
-    filters = rot90(Fs, 2);
-    responses = zeros(size(img, 1), size(img, 2), size(Fs, 3));
-    for fInd=1:size(filters, 3)
-        responses(:, :, fInd) = conv2(img_pad, filters(:, :, fInd), 'valid'); % symetric filters, so don't need to flip
+    % fn
+    [pathstr, name, ~] = fileparts(o_feat(i).filename);
+    fn = sprintf('%s/%s_scale_%s_LMTextureFilters.mat', pathstr, name, num2str(o_feat(i).scale, 4));
+    
+    if i_params.fSaveFeats && exist(fn, 'file')
+        responses = LoadData(fn);
+    else
+        % pad images
+        img = rgb2gray(i_img(i).img);
+        img_pad = padarray(img, [(size(Fs, 1)-1)/2 (size(Fs, 2)-1)/2], 'symmetric', 'both');
+        filters = rot90(Fs, 2);
+        % compute
+        responses = zeros(size(img, 1), size(img, 2), size(Fs, 3));
+        for fInd=1:size(filters, 3)
+            responses(:, :, fInd) = conv2(img_pad, filters(:, :, fInd), 'valid'); % symetric filters, so don't need to flip
+        end
+        % save
+        if i_params.fSaveFeats
+            SaveData(fn, responses);
+        end
     end
     o_feat(i).Texture = responses;
+
+
+%     % pad images
+%     img = rgb2gray(i_img(i).img);
+%     img_pad = padarray(img, [(size(Fs, 1)-1)/2 (size(Fs, 2)-1)/2], 'symmetric', 'both');
+%     filters = rot90(Fs, 2);
+%     % compute
+%     responses = zeros(size(img, 1), size(img, 2), size(Fs, 3));
+%     for fInd=1:size(filters, 3)
+%         responses(:, :, fInd) = conv2(img_pad, filters(:, :, fInd), 'valid'); % symetric filters, so don't need to flip
+%     end
+%     o_feat(i).Texture = responses;
 end
-% % add also colors 
-% %%FIXME: not good...
-% for iInd=1:nImgs 
-%     % add colors
-%     o_feat(iInd).Texture = cat(3, o_feat(iInd).Texture, GetRGBDenseFeature(o_feat(iInd).img));
-% end
+
 if verbosity >= 1
     fprintf('done (%s sec.)\n', num2str(toc(sTic)));
 end
@@ -316,40 +412,62 @@ o_params = i_params;
 for cInd=1:numel(i_cues)
     cueStr = i_cues{cInd};
     if ~isfield(i_params, 'textons') || isempty(i_params.textons)
-        % get texture
-        switch(cueStr)
-            case 'Texture'
-                if ~isfield(i_imgs, 'Texture')
-                    [feats, fb] = GetTextureLMFeature(feats, i_params);
-                end
-            case 'DSIFT'
-                if ~isfield(i_imgs, 'DSIFT')
-                    feats = GetDenseSIFTFeature(feats);
-                end
-        end
         % get texton features
         if verbosity >= 1
             sTic = tic;
             fprintf('[VisualWord] Find visual words for %s...', cueStr);
         end
-        data = cell(1, nImgs);
-        for iInd=1:nImgs
-%             curTexture = feats(iInd).Texture;
-            curTexture = getfield(feats, {iInd}, cueStr);
-            data_is = reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])';
-            step = round(1/samplingRatio);
-            data{iInd} = data_is(:, 1:step:end);
-%             ind_samples = randi(size(data_is, 2), [1 nSamplesForVW]);
-%             data{iInd} = data_is(:, ind_samples);
-        end
-        data = double(cell2mat(data));
-        if verbosity >= 1
-            fprintf('from %d data...', size(data, 2));
-        end
-        nTextonsEach = nTexton/numel(i_cues);
-        o_params.textons{cInd} = vl_kmeans(data, nTextonsEach, 'Algorithm', 'Elkan', 'Distance', i_params.distance); % % L1 distance
-        o_params.kdtree{cInd} = vl_kdtreebuild(o_params.textons{cInd}, 'Distance', i_params.distance); % L1 distance
+        % load if available
+        [pathstr, ~, ~] = fileparts(feats(1).filename);
+        fn = sprintf('%s/VWs_%s_Cues_%s.mat', pathstr, i_params.VW.IDStr, cueStr);
+        if i_params.fSaveFeats && exist(fn, 'file')
+            data = LoadData(fn);
+            VWs = data.VWs;
+            kdtree = data.kdtree;
+        else
 
+            % get basic features
+            assert(isfield(i_imgs, cueStr));
+%             switch(cueStr)
+%                 case 'Texture'
+%                     assert(isfield(i_imgs, 'Texture'));
+%     %                 if ~isfield(i_imgs, 'Texture')
+%     %                     [feats, fb] = GetTextureLMFeature(feats, i_params);
+%     %                 end
+%                 case 'DSIFT'
+%                     assert(isfield(i_imgs, 'DSIFT'));
+%     %                 if ~isfield(i_imgs, 'DSIFT')
+%     %                     feats = GetDenseSIFTFeature(feats);
+%     %                 end
+%             end
+
+            % get data
+            data = cell(1, nImgs);
+            for iInd=1:nImgs
+                curTexture = getfield(feats, {iInd}, cueStr);
+                data_is = reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])';
+                step = round(1/samplingRatio);
+                data{iInd} = data_is(:, 1:step:end);
+    %             ind_samples = randi(size(data_is, 2), [1 nSamplesForVW]);
+    %             data{iInd} = data_is(:, ind_samples);
+            end
+            data = double(cell2mat(data));
+            if verbosity >= 1
+                fprintf('from %d data...', size(data, 2));
+            end
+            % find VWs
+            nTextonsEach = nTexton/numel(i_cues);
+            VWs = vl_kmeans(data, nTextonsEach, 'Algorithm', 'Elkan', 'Distance', i_params.VW.distance); 
+            kdtree = vl_kdtreebuild(VWs, 'Distance', i_params.VW.distance); 
+
+            % save
+            SaveData(fn, struct('VWs', VWs, 'kdtree', kdtree));
+        end
+        
+        o_params.textons{cInd} = VWs;
+        o_params.kdtree{cInd} = kdtree;
+        
+        
 %         dimension = size(data, 1);
 %         numClusters = nTextonsEach;
 %         [initMeans, assignments] = vl_kmeans(data, nTextonsEach, 'Algorithm', 'Elkan', 'Distance', 'L1');
@@ -386,7 +504,7 @@ for cInd=1:numel(i_cues)
                 vws_filters = cell(1, 1, 1, nTextonsEach);
                 for vwInd=1:nTextonsEach
                     vws_filters{vwInd} = sum(bsxfun(@times, fb, reshape(vws(:, vwInd), [1 1 numel(vws(:, vwInd))])), 3);
-                    vws_filters{vwInd} = vws_filters{vwInd}./norm(vws_filters{vwInd}(:)); % L1 normalization
+                    vws_filters{vwInd} = vws_filters{vwInd}./norm(vws_filters{vwInd}(:)); 
                 end
 
                 figure(1451243); 
@@ -403,21 +521,23 @@ end
 
 function [o_feats, o_params] = GetVisualWordFeature(i_imgs, i_params)
 
-if ~isfield(i_params, 'nNN')
-    i_params.nNN = max(1, round(i_params.nTexton*0.5));
-end
+% if ~isfield(i_params, 'nNN')
+%     i_params.nNN = max(1, round(i_params.nTexton*0.5));
+% end
+assert(isfield(i_params.VW, 'nNN'));
+assert(isfield(i_params.VW, 'sig'));
 baseFeats = i_params.baseFeats;
-nNN = i_params.nNN;
+nNN = i_params.VW.nNN;
+sig = i_params.VW.sig;
 verbosity = i_params.verbosity;
 nImgs = numel(i_imgs);
 feats = i_imgs;
 nTexton = i_params.nTexton;
+
 %% extract textons
 i_params = GetVisualWord(i_imgs, baseFeats, i_params);
 textons = i_params.textons;
 kdtree = i_params.kdtree;
-
-warning('DSIFT: what is the proper sig?');
 
 %% obtain texton features
 if ~isfield(i_imgs, 'Texton')
@@ -425,51 +545,164 @@ if ~isfield(i_imgs, 'Texton')
         sTic = tic;
         fprintf('[VisualWord] Obtain visual word responses...');
     end
-    feats_added = cell(numel(feats), 1);
-    for iInd=1:nImgs
-        curFeat = feats(iInd);
-        textonImgs = cell(1, 1, numel(baseFeats));
-        nTextonsEach = nTexton/numel(baseFeats);
-        for cInd=1:numel(baseFeats)
-            sig = .1;
-%             switch(baseFeats{cInd})
-%                 case 'Texture'
-%                     sig = .1;
-%                 case 'DSIFT'
-%                     sig = 1e5;
-%                 otherwise
-%                     warning('Improper exponential weighting');
-%                     keyboard;
-%             end
-            curTexture = getfield(curFeat, baseFeats{cInd});
-            curTexture_q = double(reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])');
+    [pathstr, ~, ~] = fileparts(feats(1).filename);
+    figDir = sprintf('%s/VWResponses', pathstr);
+    feats(1).Texton = [];
+%     feats_added = cell(numel(feats), 1);
+    if sig == 0
+        % check statistics of distnaces
+        dist_sum = 0;
+        nData = 0;
+        for iInd=1:nImgs
+            % extract
+            for cInd=1:numel(baseFeats)
+                curTexture = getfield(feats(iInd), baseFeats{cInd});
+                curTexture_q = double(reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])');
 
-            [IND, DIST] = vl_kdtreequery(kdtree{cInd}, textons{cInd}, curTexture_q, 'numNeighbors', nNN); %L1 distance
-            textonImg = zeros(size(curTexture, 1), size(curTexture, 2), nTextonsEach);
-            [cols, rows] = meshgrid(1:size(textonImg, 2), 1:size(textonImg, 1)); %%FIXME: inefficient
-            for nnInd=1:nNN
-                linInd = sub2ind(size(textonImg), rows(:), cols(:), double(IND(nnInd, :))');
-                textonImg(linInd) = exp(-DIST(nnInd, :)/sig);
+                [~, DIST] = vl_kdtreequery(kdtree{cInd}, textons{cInd}, curTexture_q, 'numNeighbors', nNN);
+                dist_sum = dist_sum + sum(DIST(:));
+                nData = nData + numel(DIST);
             end
-            textonImgs{1, 1, cInd} = bsxfun(@times, textonImg, 1./sum(abs(textonImg), 3)); %L1 normalization
         end
-        textonImg = cell2mat(textonImgs);
-        assert(size(textonImg, 3) == nTexton);
-        % sparsify
-        TextonSt = struct('textonSpImg', []);
-        for tInd=1:nTexton
-            TextonSt(tInd).textonSpImg = sparse(textonImg(:, :, tInd));
-        end
-        curFeat.Texton = TextonSt;
-        feats_added{iInd} = curFeat;
+        d_ave = dist_sum/nData;
+        sig = -d_ave/log(0.5);
     end
-    feats = reshape(cell2mat(feats_added), size(i_imgs));
     
+    % extract vw responses
+    for iInd=1:nImgs
+        % fn
+        [pathstr, name, ~] = fileparts(feats(iInd).filename);
+        fn = sprintf('%s/%s_scale_%s_VW_%s_Cues_%s_Resp.mat', pathstr, name, num2str(feats(iInd).scale, 4), i_params.VW.IDStr, cell2mat(baseFeats));
+        
+        if i_params.fSaveFeats && exist(fn, 'file')
+            TextonSt = LoadData(fn);
+        else
+            % prepare for save figures
+            if i_params.fSaveFeats && iInd == 1
+                [~, ~, ~] = rmdir(figDir, 's');
+                [~, ~, ~] = mkdir(figDir);
+            end
+            % extract
+            curFeat = feats(iInd);
+            textonImgs = cell(1, 1, numel(baseFeats));
+            nTextonsEach = nTexton/numel(baseFeats);
+            for cInd=1:numel(baseFeats)
+                curTexture = getfield(curFeat, baseFeats{cInd});
+                curTexture_q = double(reshape(curTexture, [size(curTexture, 1)*size(curTexture, 2) size(curTexture, 3)])');
+
+                [IND, DIST] = vl_kdtreequery(kdtree{cInd}, textons{cInd}, curTexture_q, 'numNeighbors', nNN);
+                textonImg = zeros(size(curTexture, 1), size(curTexture, 2), nTextonsEach);
+                [cols, rows] = meshgrid(1:size(textonImg, 2), 1:size(textonImg, 1)); %%FIXME: inefficient
+                for nnInd=1:nNN
+                    linInd = sub2ind(size(textonImg), rows(:), cols(:), double(IND(nnInd, :))');
+                    textonImg(linInd) = exp(-DIST(nnInd, :)/sig);
+                end
+    %             textonImgs{1, 1, cInd} = bsxfun(@times, textonImg, 1./sum(abs(textonImg), 3)); %L1 normalization
+                textonImgs{1, 1, cInd} = textonImg;
+            end
+            textonImg = cell2mat(textonImgs);
+            assert(size(textonImg, 3) == nTexton);
+            % sparsify
+            TextonSt = struct('textonSpImg', []);
+            for tInd=1:nTexton
+                TextonSt(tInd).textonSpImg = sparse(textonImg(:, :, tInd));
+            end
+            % save
+            if i_params.fSaveFeats
+                SaveData(fn, TextonSt);
+            end
+            % save
+            if i_params.fSaveFeats
+                % save VWs responses
+                h = 6248;
+                for i=1:round(numel(TextonSt)*0.1):numel(TextonSt)
+                    sfigure(h); clf; 
+                    imagesc(curFeat.img);
+                    hold on;
+                    imagesc(TextonSt(i).textonSpImg); 
+                    caxis([0 1]);
+                    colorbar;
+                    alpha(0.7);
+                    hold off;
+                    saveas(h, sprintf('%s/%s_scale_%s_Cues_%s_VWID_%s_VW_%.5d_Resp.png', figDir, name, num2str(feats(iInd).scale, 4), cell2mat(baseFeats), i_params.VW.IDStr, i));
+                end
+            end
+        end
+%         curFeat.Texton = TextonSt;
+%         feats_added{iInd} = curFeat;
+        feats(iInd).Texton = TextonSt;
+    end
+    %%
+
+    if i_params.fSaveFeats && mod(iInd, 5)==0
+%         % VW response range
+%         nVWs = numel(feats(1).Texton);
+%         for vwInd=1:nVWs
+%             vwhist_cell = cell(numel(feats), 1);
+%             for iInd=1:numel(feats)
+%                 vwhist_cell{iInd} = feats(iInd).Texton(vwInd).textonSpImg(:);
+%             end
+%             vwhist_fn = sprintf('%s/%s_scale_%s_VW_%.5d_VWRespHist.png', figDir, name, num2str(feats(iInd).scale, 4), vwInd);
+%             if ~exist(vwhist_fn, 'file')
+%                 h = 1423;
+%                 figure(h); clf;
+%                 vwhist = cell2mat(vwhist_cell);
+%                 vwhist(vwhist == 0) = []; % rm zeros
+%                 hist(vwhist, 0:0.01:1);
+%                 title(sprintf('Histogram of %dth VW response values (except for zeros)', vwInd));
+%                 saveas(h, vwhist_fn);
+%             end
+%         end
+        
+        % average VWs
+    end
+
     if verbosity >= 1
         fprintf('done (%s sec.)\n', num2str(toc(sTic)));
     end
 end
 
+%% decide the range of VWs response values
+assert(isfield(i_params, 'nFeatThres'));
+if ~isfield(i_params, 'featThres')
+    nVWs = i_params.nTexton;
+    nFeatThres = i_params.nFeatThres;
+    % fn
+    [pathstr, ~, ~] = fileparts(feats(1).filename);
+    fn = sprintf('%s/featThres_VWID_%s_nVW_%d_nFeatThres_%d.mat', pathstr, i_params.VW.IDStr, nVWs, nFeatThres);
+    if ~exist(fn, 'file')
+        featThres = zeros(nFeatThres, nVWs);
+        for vwInd=1:nVWs
+            % calc hist.
+            vwhist_cell = cell(numel(feats), 1);
+            for iInd=1:numel(feats)
+                vwhist_cell{iInd} = feats(iInd).Texton(vwInd).textonSpImg(:);
+            end
+            vwhist = cell2mat(vwhist_cell);
+            vwhist(vwhist == 0) = []; % rm zeros
+            vwhist = vwhist(:);
+            % find the uniform range
+            val_min = min(vwhist);
+            val_max = max(vwhist);
+            thres = val_min:(val_max-val_min)/(nFeatThres+1):val_max;
+            featThres(:, vwInd) = thres(2:end-1);
+            % save
+            if i_params.fSaveFeats && mod(vwInd, 10) == 0
+                vwhist_fn = sprintf('%s/%s_scale_%s_VW_%.5d_VWRespHist.png', figDir, name, num2str(feats(iInd).scale, 4), vwInd);
+                h = 1423;
+                sfigure(h); clf;
+                hist(vwhist, 0:0.01:1);
+                title(sprintf('Histogram of %dth VW response values (except for zeros)', vwInd));
+                saveas(h, vwhist_fn);
+            end
+            % save
+            save(fn, 'featThres');
+        end
+    else
+        load(fn);
+    end
+    i_params.featThres = featThres;
+end
 
 %% return
 o_feats = feats;
@@ -571,9 +804,6 @@ end
 function [o_feats, o_params] = GetTextonFeatureEff(i_imgs, i_params)
 
 %% extract textons
-
-
-
 
 if ~isfield(i_params, 'nNN')
     i_params.nNN = max(1, round(i_params.nTexton*0.1));
@@ -715,10 +945,22 @@ if verbosity >= 1
 end
 
 if ~isfield(i_params, 'parts')
-    if verbosity >= 1
-        fprintf('generate...');
+    % fn
+    fn = sprintf('%s/subwindows_Textonboost.mat', i_params.cacheDir);
+    if ~exist(fn, 'file')
+        if verbosity >= 1
+            fprintf('generate...');
+        end
+        parts = GenTextonBoostParts(i_params);
+        save(fn, 'parts');
+    else
+        if verbosity >= 1
+            fprintf('load from cache...');
+        end 
+        load(fn, 'parts');
     end
-    i_params.parts = GenTextonBoostParts(i_params);
+    i_params.parts = parts;
+    
 else
     if verbosity >= 1
         fprintf('use the existing one...');
@@ -781,9 +1023,10 @@ assert(isfield(params, 'parts'));
 
 %% obtain Texton features
 textonFeats = i_imgs;
-if ~isfield(textonFeats, 'Texton')
-    [textonFeats, params] = GetTextonFeature(i_imgs, params);
-end
+assert(isfield(textonFeats, 'Texton'));
+% if ~isfield(textonFeats, 'Texton')
+%     [textonFeats, params] = GetTextonFeature(i_imgs, params);
+% end
 
 %% obtain integral images
 if verbosity >= 1
@@ -792,21 +1035,67 @@ if verbosity >= 1
 end
 feats = textonFeats;
 if ~isfield(feats, 'TextonIntImg')
-%     textonFeats_sq = arrayfun(@(x) struct('Texton', x.Texton), textonFeats);
-
+    intImgDataType = 'single';
+    % obtain integral images for each images
     for iInd=1:nImg
-        curFeat = textonFeats(iInd).Texton;
-%         curFeat = textonFeats_sq(iInd).Texton;
-        textIntImg = zeros(size(curFeat(1).textonSpImg, 1)+1, size(curFeat(1).textonSpImg, 2)+1, nTexton, 'single');
-        for tInd=1:nTexton
-%             textIntImg(:, :, tInd) = integralImage(curFeat(:, :, tInd));
-            textIntImg(:, :, tInd) = integralImage(full(curFeat(tInd).textonSpImg));
+        % load cache results if there is
+        [pathstr, name, ~] = fileparts(feats(iInd).filename);
+        fn = sprintf('%s/%s_scale_%s_VW_%s_Cues_%s_IntetralImage.mat', pathstr, name, num2str(feats(iInd).scale, 4), i_params.VW.IDStr, cell2mat(i_params.baseFeats));
+        if i_params.fSaveFeats && exist(fn, 'file')
+            load(fn);
+        else
+            curFeat = textonFeats(iInd).Texton;
+            textIntImg = zeros(size(curFeat(1).textonSpImg, 1)+1, size(curFeat(1).textonSpImg, 2)+1, nTexton, intImgDataType);
+            % obtain an integral image for each vw
+            for tInd=1:nTexton
+                textIntImg(:, :, tInd) = integralImage(full(curFeat(tInd).textonSpImg));
+            end
+            % save
+            if i_params.fSaveFeats
+                save(fn, 'textIntImg');
+            end
         end
         feats(iInd).TextonIntImg = textIntImg;
     end
+    
+    % compression
+    if i_params.fCompression 
+        if verbosity >= 1
+            fprintf('compress data...');
+        end
+        % check the range of integral image values
+        nBits = 8; % FIXME: compress only into uint8
+        decodeMap = zeros(2^nBits, params.nTexton, intImgDataType);
+        for tInd=1:nTexton
+            for sInd=1:size(feats, 3)
+                feat_scale = feats(:, :, sInd);
+                vwvs = cell(size(feat_scale, 1)*size(feat_scale, 2), 1);
+%                 feat_scale = feats;
+%                 vwvs = cell(numel(feat_scale), 1);
+                for iInd=1:numel(vwvs)
+                    vwvs{iInd} = feat_scale(iInd).TextonIntImg(:, :, tInd);
+                    vwvs{iInd} = vwvs{iInd}(:);
+                    vwvs{iInd} = vwvs{iInd}./max(vwvs{iInd}); % normalization to make value range [0 1]
+                end
+                vwvs = double(cell2mat(vwvs));
+                val_min = min(vwvs);
+                val_max = max(vwvs);
+                nBin = 2^nBits;
+                rng = val_min:(val_max-val_min)/nBin:val_max;
+                assert(numel(rng) == nBin+1);
 
-%     feats_sq = GetTextonIntImgs(textonFeats_sq);
-%     feats = arrayfun(@(x) AddTextonIntImg(feats, x), feats_sq);
+
+                figure(43124);
+                vwvs(vwvs == 0) = [];
+                hist(vwvs, rng); title(sprintf('Histogram of integral image values in %d th VW', tInd));
+            end
+        end
+        
+        % save decodeMap
+    
+    end
+        
+    
 end
 if verbosity >= 1
     fprintf('done (%s sec.)\n', num2str(toc(sTic)));
@@ -815,11 +1104,6 @@ end
 o_params = params;
 o_feats = feats;
 
-end
-
-function [o_st] = AddTextonIntImg(i_st, x)
-o_st = i_st;
-o_st.TextonIntImg = x.TextonIntImg;
 end
 
 function [o_feat, o_params] = GetTextonBoostFeature(i_imgs, i_params)
