@@ -122,7 +122,7 @@ for cInd=1:numel(i_cues)
             [o_feat, o_params] = GetTextonBoostIntFeature(imgs, i_params);
             
         case 'DSIFT'
-            o_feat = GetDenseSIFTFeature(imgs);
+            o_feat = GetDenseSIFTFeature(imgs, i_params);
         otherwise
             warning('Wrong cue name: %s', i_cues{cInd});
     end
@@ -219,21 +219,45 @@ ssdesc = struct('resp', resp, 'draw_coords', draw_coords, 'salient_coords', sali
 end
 
 
-function [o_feat] = GetDenseSIFTFeature(i_imgs)
+function [o_feat] = GetDenseSIFTFeature(i_imgs, i_params)
 %% init
 o_feat = i_imgs;
 nImgs = numel(i_imgs);
+verbosity = i_params.verbosity;
 o_feat(1).DSIFT = [];
 %% extract
-for iInd=1:nImgs
-    I = im2single(rgb2gray(i_imgs(iInd).img));
-    [f, d] = vl_dsift(I);
+if verbosity >= 1
+    sTic = tic;
+    fprintf('[DSIFT] Obtain DSIFT...');
+end
+parfor iInd=1:nImgs
+    % fn
+    [pathstr, name, ~] = fileparts(o_feat(iInd).filename);
+    fn = sprintf('%s/%s_scale_%s_DSIFT.mat', pathstr, name, num2str(o_feat(iInd).scale, 4));
+    
+    if i_params.fSaveFeats && exist(fn, 'file')
+        responses = LoadData(fn);
+    else
+        % compute
+        I = im2single(rgb2gray(i_imgs(iInd).img));
+        [f, d] = vl_dsift(I);
+        % reshape??
+        assert(f(2, 1) < f(2, 2));
+        d = shiftdim(d, 1);
+        d = reshape(d, size(I, 1)-9, size(I, 2)-9, size(d, 2)); %%FIXME: const!
+        denseFeat = padarray(d, [4, 4], 0, 'pre'); %%FIXME: const!
+        responses = padarray(denseFeat, [5 5], 0, 'post'); %%FIXME: const!
+        % save
+        if i_params.fSaveFeats
+            SaveData(fn, responses);
+        end
 
-    assert(f(2, 1) < f(2, 2));
-    d = shiftdim(d, 1);
-    d = reshape(d, size(I, 1)-9, size(I, 2)-9, size(d, 2)); %%FIXME: const!
-    denseFeat = padarray(d, [4, 4], 0, 'pre'); %%FIXME: const!
-    o_feat(iInd).DSIFT = padarray(denseFeat, [5 5], 0, 'post'); %%FIXME: const!
+    end
+    o_feat(iInd).DSIFT = responses;
+end
+%% fin
+if verbosity >= 1
+    fprintf('done (%s sec.)\n', num2str(toc(sTic)));
 end
 end
 
@@ -268,6 +292,9 @@ for i=1:nImgs
     fn = sprintf('%s/%s_scale_%s_LMTextureFilters.mat', pathstr, name, num2str(o_feat(i).scale, 4));
     
     if i_params.fSaveFeats && exist(fn, 'file')
+        if verbosity >= 1
+            fprintf('load...');
+        end
         responses = LoadData(fn);
     else
         % pad images
@@ -421,6 +448,9 @@ for cInd=1:numel(i_cues)
         [pathstr, ~, ~] = fileparts(feats(1).filename);
         fn = sprintf('%s/VWs_%s_Cues_%s.mat', pathstr, i_params.VW.IDStr, cueStr);
         if i_params.fSaveFeats && exist(fn, 'file')
+            if verbosity >= 1
+                fprintf('load...');
+            end
             data = LoadData(fn);
             VWs = data.VWs;
             kdtree = data.kdtree;
@@ -575,11 +605,14 @@ if ~isfield(i_imgs, 'Texton')
         fn = sprintf('%s/%s_scale_%s_VW_%s_Cues_%s_Resp.mat', pathstr, name, num2str(feats(iInd).scale, 4), i_params.VW.IDStr, cell2mat(baseFeats));
         
         if i_params.fSaveFeats && exist(fn, 'file')
+            if verbosity >= 1
+                fprintf('load...');
+            end
             TextonSt = LoadData(fn);
         else
             % prepare for save figures
             if i_params.fSaveFeats && iInd == 1
-                [~, ~, ~] = rmdir(figDir, 's');
+%                 [~, ~, ~] = rmdir(figDir, 's');
                 [~, ~, ~] = mkdir(figDir);
             end
             % extract
@@ -612,7 +645,7 @@ if ~isfield(i_imgs, 'Texton')
                 SaveData(fn, TextonSt);
             end
             % save
-            if i_params.fSaveFeats
+            if i_params.fSaveFeats && mod(iInd, round(nImgs*0.1))==0
                 % save VWs responses
                 h = 6248;
                 for i=1:round(numel(TextonSt)*0.1):numel(TextonSt)
@@ -634,7 +667,7 @@ if ~isfield(i_imgs, 'Texton')
     end
     %%
 
-    if i_params.fSaveFeats && mod(iInd, 5)==0
+    if i_params.fSaveFeats
 %         % VW response range
 %         nVWs = numel(feats(1).Texton);
 %         for vwInd=1:nVWs
@@ -1042,6 +1075,9 @@ if ~isfield(feats, 'TextonIntImg')
         [pathstr, name, ~] = fileparts(feats(iInd).filename);
         fn = sprintf('%s/%s_scale_%s_VW_%s_Cues_%s_IntetralImage.mat', pathstr, name, num2str(feats(iInd).scale, 4), i_params.VW.IDStr, cell2mat(i_params.baseFeats));
         if i_params.fSaveFeats && exist(fn, 'file')
+            if verbosity >= 1
+                fprintf('load...');
+            end
             load(fn);
         else
             curFeat = textonFeats(iInd).Texton;
